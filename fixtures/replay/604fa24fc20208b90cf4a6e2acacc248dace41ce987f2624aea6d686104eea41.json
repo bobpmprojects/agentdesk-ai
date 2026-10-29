@@ -1,0 +1,26 @@
+{
+  "request": {
+    "messages": [
+      {
+        "content": "Confirm the revised customer choice using only the facts. Do not claim a replacement was created.",
+        "role": "system"
+      },
+      {
+        "content": "Follow-up: Actually, make it store credit.\nFacts: {'order_id': 'ORD-0008', 'selected_resolution': 'store credit', 'policy_rechecked': True, 'committed': True, 'amount': '149', 'replacement_created': False, 'reason': 'The verified request is within 30 days of delivery.'}",
+        "role": "user"
+      }
+    ],
+    "model_id": "gpt-4o",
+    "provider": "openai",
+    "template_version": "m5-follow-up-v1",
+    "tool_schema_version": "m5-v1"
+  },
+  "response": {
+    "text": "The revised customer choice for order ID ORD-0008 is confirmed as \"store credit.\"",
+    "usage": {
+      "cost_usd": 0.0,
+      "input_tokens": 114,
+      "output_tokens": 19
+    }
+  }
+}

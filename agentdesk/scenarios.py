@@ -12,9 +12,11 @@ from agentdesk.db.connection import connect
 from agentdesk.db.repository import Repository
 from agentdesk.db.seed import seed_database
 from agentdesk.schemas.agents import (
+    ContinueConversationInput,
     MultiIntentSupervisorInput,
     PolicySupervisorInput,
     RefundSupervisorInput,
+    StartResolutionInput,
     SupervisorInput,
 )
 from agentdesk.schemas.common import AgentContext
@@ -193,9 +195,58 @@ def run_m4(settings: Settings) -> str:
         connection.close()
 
 
+def run_m5(settings: Settings) -> str:
+    seed_database(settings.database_path)
+    connection = connect(settings.database_path)
+    try:
+        supervisor = Supervisor(
+            Repository(connection),
+            settings,
+            live_call=(
+                StrandsModelClient(settings)
+                if settings.llm_mode == LLMMode.RECORD
+                else None
+            ),
+        )
+        first = supervisor.start_resolution(
+            StartResolutionInput(
+                context=AgentContext(
+                    conversation_id=DEMO_CONVERSATION_ID,
+                    turn_id=UUID("00000000-0000-0000-0000-000000000501"),
+                    customer_message="Please replace my damaged blender.",
+                ),
+                order_id="ORD-0008",
+                email="customer003@northwind.test",
+                item_id="ITEM-0008",
+                preferred_resolution="replacement",
+                idempotency_keys={
+                    "replacement": UUID(
+                        "00000000-0000-0000-0000-000000005001"
+                    ),
+                    "store_credit": UUID(
+                        "00000000-0000-0000-0000-000000005002"
+                    ),
+                },
+            )
+        )
+        second = supervisor.continue_conversation(
+            ContinueConversationInput(
+                context=AgentContext(
+                    conversation_id=DEMO_CONVERSATION_ID,
+                    turn_id=UUID("00000000-0000-0000-0000-000000000502"),
+                    customer_message="Actually, make it store credit.",
+                ),
+                item_id="ITEM-0008",
+            )
+        )
+        return f"FIRST TURN: {first.final_reply}\nFOLLOW-UP: {second.final_reply}"
+    finally:
+        connection.close()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run an AgentDesk milestone scenario")
-    parser.add_argument("milestone", choices=["m1", "m2", "m3", "m4"])
+    parser.add_argument("milestone", choices=["m1", "m2", "m3", "m4", "m5"])
     parser.add_argument("--mode", choices=["record", "replay"], required=True)
     args = parser.parse_args()
     settings = Settings(llm_mode=args.mode)
@@ -207,6 +258,8 @@ def main() -> None:
         print(run_m3(settings))
     elif args.milestone == "m4":
         print(run_m4(settings))
+    elif args.milestone == "m5":
+        print(run_m5(settings))
 
 
 if __name__ == "__main__":

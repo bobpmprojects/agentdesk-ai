@@ -219,3 +219,44 @@
   with extra verifier calls to avoid unapproved API spend.
 - BM25 uses a small deterministic tokenizer and relevance threshold suitable for six
   documents, not language-aware stemming or synonyms.
+
+## M5 — Multi-turn conversation state
+
+### Built
+
+- Typed SQLite conversation-state store containing verified scope, active order,
+  pending/resolved intents, alternatives, prior actions, and stable idempotency keys.
+- PII-minimized persistence: raw email and address values are not stored in state.
+- First-turn eligibility flow that records a preferred replacement without performing
+  the write.
+- Follow-up re-planning for “actually, make it store credit,” including a fresh
+  deterministic policy check at write time.
+- Scripted two-turn M5 scenario.
+
+### Files changed
+
+- State/contracts: `agentdesk/runtime/conversation.py`,
+  `agentdesk/schemas/agents.py`
+- Orchestration/demo: `agentdesk/agents/supervisor.py`,
+  `agentdesk/scenarios.py`
+- Tests: `tests/integration/test_m5_conversation_state.py`
+- Replay: `fixtures/replay/`
+
+### Verification
+
+- `uv run pytest`: **23 passed**
+- M5 OpenAI RECORD then REPLAY: **both turn outputs identical**
+- Streamlit headless health check: **passed**
+
+### Acceptance criteria met
+
+- **AC9:** a pending replacement can be changed to store credit on the next turn;
+  AgentDesk reloads state, rechecks policy, creates no replacement, and records only
+  store credit.
+
+### Known gaps or shortcuts
+
+- The scripted service path demonstrates durable multi-turn behavior; the generic
+  Streamlit form does not yet expose controls for every resolution transition.
+- Conversation state is local SQLite only, with no expiry or multi-process locking
+  beyond SQLite transactions.

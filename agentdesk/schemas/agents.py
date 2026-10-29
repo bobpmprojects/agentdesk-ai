@@ -1,6 +1,6 @@
 """Typed agent input and output contracts."""
 
-from datetime import date
+from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
 
@@ -191,3 +191,35 @@ class PolicySupervisorOutput(ContractModel):
     citations: list[PolicyCitation] = Field(default_factory=list)
     grounded: bool
     verifier: VerifierOutput
+
+
+class ConversationState(ContractModel):
+    conversation_id: UUID
+    identity: VerifiedIdentity | None = None
+    active_order_id: str | None = None
+    resolved_intents: list[Intent] = Field(default_factory=list)
+    pending_intents: list[Intent] = Field(default_factory=list)
+    offered_alternatives: list[str] = Field(default_factory=list)
+    prior_actions: list[ActionClaim] = Field(default_factory=list)
+    idempotency_keys: dict[str, UUID] = Field(default_factory=dict)
+    updated_at: datetime
+
+
+class StartResolutionInput(ContractModel):
+    context: AgentContext
+    order_id: str
+    email: SecretStr
+    item_id: str
+    preferred_resolution: Literal["replacement", "refund", "store_credit"]
+    idempotency_keys: dict[str, UUID]
+
+
+class ConversationTurnOutput(ContractModel):
+    final_reply: str
+    state: ConversationState
+    actions: list[ActionClaim] = Field(default_factory=list)
+
+
+class ContinueConversationInput(ContractModel):
+    context: AgentContext
+    item_id: str
