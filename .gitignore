@@ -28,6 +28,7 @@ env/
 *.db
 *.sqlite
 *.sqlite3
+.local/
 
 # Packaging / install
 build/

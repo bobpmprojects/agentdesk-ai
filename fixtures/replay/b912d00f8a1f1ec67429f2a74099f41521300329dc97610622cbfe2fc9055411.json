@@ -1,0 +1,22 @@
+{
+  "request": {
+    "messages": [
+      {
+        "content": "Reply with exactly: AgentDesk replay is ready.",
+        "role": "user"
+      }
+    ],
+    "model_id": "claude-sonnet-4-20250514",
+    "provider": "anthropic",
+    "template_version": "m0-v1",
+    "tool_schema_version": "m0-v1"
+  },
+  "response": {
+    "text": "AgentDesk replay is ready.",
+    "usage": {
+      "cost_usd": 0.0,
+      "input_tokens": 8,
+      "output_tokens": 5
+    }
+  }
+}
