@@ -13,6 +13,7 @@ from agentdesk.db.repository import Repository
 from agentdesk.db.seed import seed_database
 from agentdesk.schemas.agents import (
     MultiIntentSupervisorInput,
+    PolicySupervisorInput,
     RefundSupervisorInput,
     SupervisorInput,
 )
@@ -153,9 +154,48 @@ def run_m3(settings: Settings) -> str:
         connection.close()
 
 
+def run_m4(settings: Settings) -> str:
+    seed_database(settings.database_path)
+    connection = connect(settings.database_path)
+    try:
+        supervisor = Supervisor(
+            Repository(connection),
+            settings,
+            live_call=(
+                StrandsModelClient(settings)
+                if settings.llm_mode == LLMMode.RECORD
+                else None
+            ),
+        )
+        covered = supervisor.run_policy(
+            PolicySupervisorInput(
+                context=AgentContext(
+                    conversation_id=DEMO_CONVERSATION_ID,
+                    turn_id=UUID("00000000-0000-0000-0000-000000000401"),
+                    customer_message="What is the cash refund limit?",
+                )
+            )
+        )
+        uncovered = supervisor.run_policy(
+            PolicySupervisorInput(
+                context=AgentContext(
+                    conversation_id=DEMO_CONVERSATION_ID,
+                    turn_id=UUID("00000000-0000-0000-0000-000000000402"),
+                    customer_message="Do you price match competitors?",
+                )
+            )
+        )
+        return (
+            f"CITED: {covered.final_reply}\n"
+            f"NOT COVERED: {uncovered.final_reply}"
+        )
+    finally:
+        connection.close()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run an AgentDesk milestone scenario")
-    parser.add_argument("milestone", choices=["m1", "m2", "m3"])
+    parser.add_argument("milestone", choices=["m1", "m2", "m3", "m4"])
     parser.add_argument("--mode", choices=["record", "replay"], required=True)
     args = parser.parse_args()
     settings = Settings(llm_mode=args.mode)
@@ -165,6 +205,8 @@ def main() -> None:
         print(run_m2(settings))
     elif args.milestone == "m3":
         print(run_m3(settings))
+    elif args.milestone == "m4":
+        print(run_m4(settings))
 
 
 if __name__ == "__main__":

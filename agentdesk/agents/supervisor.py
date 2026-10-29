@@ -9,7 +9,9 @@ from uuid import uuid4
 from agentdesk.agents.account import AccountAgent
 from agentdesk.agents.identity import IdentityAgent
 from agentdesk.agents.orders import OrdersAgent
+from agentdesk.agents.policy_knowledge import PolicyKnowledgeAgent
 from agentdesk.agents.returns_refunds import ReturnsRefundsAgent
+from agentdesk.agents.verifier import VerifierAgent
 from agentdesk.config import Settings
 from agentdesk.db.repository import Repository
 from agentdesk.runtime.replay import (
@@ -26,11 +28,15 @@ from agentdesk.schemas.agents import (
     MultiIntentSupervisorOutput,
     OrdersAgentInput,
     PlanStep,
+    PolicyKnowledgeAgentInput,
+    PolicySupervisorInput,
+    PolicySupervisorOutput,
     RefundSupervisorInput,
     RefundSupervisorOutput,
     ReturnsRefundsAgentInput,
     SupervisorInput,
     SupervisorOutput,
+    VerifierInput,
 )
 from agentdesk.schemas.common import TraceEvent
 
@@ -48,6 +54,10 @@ class Supervisor:
         self.orders_agent = OrdersAgent(repository)
         self.returns_refunds_agent = ReturnsRefundsAgent(repository)
         self.account_agent = AccountAgent(repository)
+        self.policy_knowledge_agent = PolicyKnowledgeAgent(settings.policies_dir)
+        self.verifier_agent = VerifierAgent(
+            repository, settings, live_call=live_call
+        )
         self.replay = ReplayCache(settings.replay_dir, settings.llm_mode)
         self.live_call = live_call
         self.trace = TraceCollector()
@@ -532,4 +542,37 @@ class Supervisor:
             plan=plan,
             final_reply=response.text,
             actions=actions,
+        )
+
+    def run_policy(
+        self, request: PolicySupervisorInput
+    ) -> PolicySupervisorOutput:
+        policy_answer = self.policy_knowledge_agent.run(
+            PolicyKnowledgeAgentInput(
+                context=request.context,
+                question=request.context.customer_message,
+            )
+        )
+        final_reply, verifier = self.verifier_agent.finalize(
+            VerifierInput(
+                context=request.context,
+                draft_reply=policy_answer.answer,
+                citations=policy_answer.citations,
+            )
+        )
+        self._trace(
+            request,
+            "verification",
+            "verifier",
+            args={
+                "approved": verifier.approved,
+                "action_claims_valid": verifier.deterministic.action_claims_valid,
+                "citations_valid": verifier.deterministic.citations_valid,
+            },
+        )
+        return PolicySupervisorOutput(
+            final_reply=final_reply,
+            citations=policy_answer.citations if verifier.approved else [],
+            grounded=policy_answer.grounded and verifier.approved,
+            verifier=verifier,
         )

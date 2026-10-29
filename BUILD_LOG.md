@@ -175,3 +175,47 @@
 - M3 intent extraction is deterministic keyword routing for the two planned demo shapes;
   a model-generated plan is intentionally deferred in favor of predictable guardrails.
 - Address validation is structural and synthetic; no postal-service validation is used.
+
+## M4 — Grounded policy answers and final verifier
+
+### Built
+
+- In-process BM25 retrieval over stable Markdown policy sections, with meaningful-term
+  coverage filtering and no vector database.
+- Policy/Knowledge specialist returning resolvable section citations or an explicit
+  “not in policy” response.
+- Code-first verifier proving every claimed action is a committed `audit_log` row and
+  every citation matches an existing document, heading, title, and quoted text.
+- LLM tone/unsupported-promise check only after deterministic checks pass.
+- One regeneration maximum followed by a conservative fallback.
+- Policy routing in Streamlit and a scripted cited/uncovered M4 scenario.
+
+### Files changed
+
+- Retrieval/tools: `agentdesk/retrieval/bm25.py`,
+  `agentdesk/tools/{policy_search,support}.py`
+- Agents/runtime: `agentdesk/agents/{policy_knowledge,verifier,supervisor}.py`
+- Contracts/persistence/UI: `agentdesk/schemas/{agents,tools}.py`,
+  `agentdesk/db/repository.py`, `agentdesk/ui/app.py`
+- Demo/tests: `agentdesk/scenarios.py`,
+  `tests/integration/test_m4_policy_verifier.py`
+- Replay: `fixtures/replay/`
+
+### Verification
+
+- `uv run pytest`: **22 passed**
+- M4 OpenAI RECORD then REPLAY: **both final outputs identical**
+- Streamlit headless health check: **passed**
+
+### Acceptance criteria met
+
+- **AC8:** valid policy answers carry real section citations; fabricated citations and
+  action claims fail deterministic verification before an LLM check.
+
+### Known gaps or shortcuts
+
+- The final verifier is wired into the policy reply path and is directly testable for
+  action replies; existing M1–M3 scripted reply paths are not retroactively re-recorded
+  with extra verifier calls to avoid unapproved API spend.
+- BM25 uses a small deterministic tokenizer and relevance threshold suitable for six
+  documents, not language-aware stemming or synonyms.

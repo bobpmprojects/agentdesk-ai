@@ -11,7 +11,7 @@ from agentdesk.db.connection import connect
 from agentdesk.db.repository import Repository
 from agentdesk.db.seed import seed_database
 from agentdesk.runtime.replay import ReplayMissError
-from agentdesk.schemas.agents import SupervisorInput
+from agentdesk.schemas.agents import PolicySupervisorInput, SupervisorInput
 from agentdesk.schemas.common import AgentContext
 
 
@@ -66,17 +66,22 @@ if submitted:
         ),
     )
     try:
-        result = supervisor.run(
-            SupervisorInput(
-                context=AgentContext(
-                    conversation_id=st.session_state.conversation_id,
-                    turn_id=uuid4(),
-                    customer_message=customer_message,
-                ),
-                order_id=order_id,
-                email=email,
-            )
+        context = AgentContext(
+            conversation_id=st.session_state.conversation_id,
+            turn_id=uuid4(),
+            customer_message=customer_message,
         )
+        policy_terms = {"policy", "refund limit", "return window", "price match"}
+        if any(term in customer_message.lower() for term in policy_terms):
+            result = supervisor.run_policy(PolicySupervisorInput(context=context))
+        else:
+            result = supervisor.run(
+                SupervisorInput(
+                    context=context,
+                    order_id=order_id,
+                    email=email,
+                )
+            )
         reply = result.final_reply
     except ReplayMissError:
         reply = (

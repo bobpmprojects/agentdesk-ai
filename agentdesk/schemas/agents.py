@@ -13,6 +13,7 @@ from agentdesk.schemas.common import (
     Intent,
     Money,
     OrderStatus,
+    PolicyCitation,
     PolicyDecision,
     VerifiedIdentity,
 )
@@ -139,3 +140,54 @@ class MultiIntentSupervisorOutput(ContractModel):
     plan: list[PlanStep] = Field(min_length=3)
     final_reply: str
     actions: list[ActionClaim] = Field(default_factory=list)
+
+
+class PolicyKnowledgeAgentInput(ContractModel):
+    context: AgentContext
+    question: str = Field(min_length=1)
+    max_sections: int = Field(default=5, ge=1, le=10)
+
+
+class PolicyKnowledgeAgentOutput(ContractModel):
+    answer: str
+    citations: list[PolicyCitation]
+    grounded: bool
+    insufficient_policy: bool
+
+
+class DeterministicVerification(ContractModel):
+    action_claims_valid: bool
+    citations_valid: bool
+    errors: list[str] = Field(default_factory=list)
+
+
+class LLMReplyCheck(ContractModel):
+    tone_ok: bool
+    unsupported_promises: list[str] = Field(default_factory=list)
+
+
+class VerifierInput(ContractModel):
+    context: AgentContext
+    draft_reply: str
+    action_claims: list[ActionClaim] = Field(default_factory=list)
+    citations: list[PolicyCitation] = Field(default_factory=list)
+    regeneration_count: int = Field(default=0, ge=0, le=1)
+
+
+class VerifierOutput(ContractModel):
+    approved: bool
+    deterministic: DeterministicVerification
+    llm_check: LLMReplyCheck | None = None
+    regenerate: bool
+    safe_fallback: str | None = None
+
+
+class PolicySupervisorInput(ContractModel):
+    context: AgentContext
+
+
+class PolicySupervisorOutput(ContractModel):
+    final_reply: str
+    citations: list[PolicyCitation] = Field(default_factory=list)
+    grounded: bool
+    verifier: VerifierOutput

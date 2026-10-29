@@ -10,6 +10,7 @@ from agentdesk.schemas.common import (
     ContractModel,
     Money,
     OrderStatus,
+    PolicyCitation,
     PolicyDecision,
     VerifiedIdentity,
 )
@@ -200,3 +201,35 @@ class UpdateContactPreferencesResult(ContractModel):
     decision: PolicyDecision
     audit: AuditRecord
     error: ToolError | None = None
+
+
+class SearchPoliciesArgs(ContractModel):
+    query: str = Field(min_length=1)
+    max_sections: int = Field(default=5, ge=1, le=10)
+
+
+class PolicySearchHit(ContractModel):
+    citation: PolicyCitation
+    score: float = Field(ge=0)
+
+
+class SearchPoliciesResult(ContractModel):
+    hits: list[PolicySearchHit]
+
+
+class LookupAuditActionsArgs(ContractModel):
+    audit_ids: list[UUID]
+
+
+class LookupAuditActionsResult(ContractModel):
+    records: list[AuditRecord]
+    missing_audit_ids: list[UUID] = Field(default_factory=list)
+
+
+class ValidateCitationsArgs(ContractModel):
+    citations: list[PolicyCitation]
+
+
+class ValidateCitationsResult(ContractModel):
+    valid: bool
+    invalid_citations: list[PolicyCitation] = Field(default_factory=list)

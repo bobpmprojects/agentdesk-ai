@@ -19,6 +19,7 @@ from agentdesk.schemas.tools import (
     GetOrderResult,
     GetTrackingResult,
     IssueStoreCreditResult,
+    LookupAuditActionsResult,
     ToolError,
     UpdateContactPreferencesResult,
     VerifyIdentityResult,
@@ -521,4 +522,21 @@ class Repository:
             updated=True,
             decision=decision,
             audit=audit,
+        )
+
+    def lookup_audit_actions(self, audit_ids: list[UUID]) -> LookupAuditActionsResult:
+        records = []
+        missing = []
+        for audit_id in audit_ids:
+            row = self.connection.execute(
+                "SELECT * FROM audit_log WHERE id = ?",
+                (str(audit_id),),
+            ).fetchone()
+            if row is None:
+                missing.append(audit_id)
+            else:
+                records.append(self._audit_record(row))
+        return LookupAuditActionsResult(
+            records=records,
+            missing_audit_ids=missing,
         )
