@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from uuid import UUID
 
-from agentdesk.agents.strands_adapter import StrandsModelClient
+from agentdesk.agents.langchain_adapter import LangChainModelClient
 from agentdesk.agents.supervisor import Supervisor
 from agentdesk.config import LLMMode, Settings
 from agentdesk.db.connection import connect
@@ -34,7 +34,7 @@ def run_m1(settings: Settings) -> str:
             Repository(connection),
             settings,
             live_call=(
-                StrandsModelClient(settings)
+                LangChainModelClient(settings)
                 if settings.llm_mode == LLMMode.RECORD
                 else None
             ),
@@ -63,7 +63,7 @@ def run_m2(settings: Settings) -> str:
             Repository(connection),
             settings,
             live_call=(
-                StrandsModelClient(settings)
+                LangChainModelClient(settings)
                 if settings.llm_mode == LLMMode.RECORD
                 else None
             ),
@@ -114,7 +114,7 @@ def run_m3(settings: Settings) -> str:
             Repository(connection),
             settings,
             live_call=(
-                StrandsModelClient(settings)
+                LangChainModelClient(settings)
                 if settings.llm_mode == LLMMode.RECORD
                 else None
             ),
@@ -163,7 +163,7 @@ def run_m4(settings: Settings) -> str:
             Repository(connection),
             settings,
             live_call=(
-                StrandsModelClient(settings)
+                LangChainModelClient(settings)
                 if settings.llm_mode == LLMMode.RECORD
                 else None
             ),
@@ -202,7 +202,7 @@ def run_m5(settings: Settings) -> str:
             Repository(connection),
             settings,
             live_call=(
-                StrandsModelClient(settings)
+                LangChainModelClient(settings)
                 if settings.llm_mode == LLMMode.RECORD
                 else None
             ),

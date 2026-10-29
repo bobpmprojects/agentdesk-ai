@@ -14,10 +14,16 @@ conversation, with zero policy violations.
 
 ## Stack (do not change without asking)
 - Python 3.11, uv, Pydantic v2 for every agent input/output and tool schema.
-- Agents: Strands Agents SDK (`strands-agents`). Check the installed package source or
-  the Strands docs for the real API before writing agent code. Never guess signatures.
+- Agents: LangGraph (+ `langchain-core` for model/tool abstractions). Check the
+  installed package version and current LangChain/LangGraph docs before writing code.
+  Never guess APIs. Do NOT use the `langgraph-supervisor` package (no longer
+  maintained).
+- Orchestration: an explicit LangGraph `StateGraph`. The Supervisor is a node that
+  routes to specialist agent nodes; shared typed state (Pydantic) flows between nodes.
+- Model providers via env var `MODEL_PROVIDER = anthropic | openai | bedrock`, using
+  each provider's LangChain integration. Model IDs live in config.
 - All framework code lives in `agentdesk/agents/` behind a thin interface so the
-  framework is swappable (e.g., to LangGraph).
+  framework remains swappable.
 - MODEL_PROVIDER env var = anthropic | openai | bedrock. Model IDs live in config.
 - Mock backend: SQLite (customers, orders, shipments, refunds, addresses, audit_log).
 - UI: Streamlit chat + side panel showing the live agent trace. Tests: pytest.
@@ -40,6 +46,8 @@ conversation, with zero policy violations.
   committed, so anyone can run the demo and evals with no API key.
 - Trace every step: agent, tool, args, policy decision, latency, tokens, cost.
 - Redact PII from logs. All data is synthetic; no real brands or people.
+- Export the compiled LangGraph as Mermaid and render the graph in the Streamlit UI
+  and `docs/ARCHITECTURE.md`, highlighting the active node during a run.
 
 ## Working style
 - Plan first. Touch only the files needed for the current milestone.

@@ -8,7 +8,12 @@ Build a local, GitHub-ready demonstration for customer-service engineering teams
 
 - Use Python 3.11, `uv`, Pydantic v2, SQLite, pytest, and Streamlit.
 - Use the Supervisor + specialists-as-tools pattern. Specialists never chat directly with one another; they return typed results to the Supervisor.
-- Keep every Strands SDK dependency behind `agentdesk/agents/interface.py`. Verify the installed `strands-agents` API or current documentation before implementing that adapter.
+- Use an explicit LangGraph `StateGraph`: a Supervisor node routes typed Pydantic
+  shared state through specialist nodes. Keep LangGraph and LangChain dependencies
+  behind `agentdesk/agents/`, and verify installed APIs against current official docs.
+- Do not use the unmaintained `langgraph-supervisor` package.
+- Use `langchain-core` model abstractions with `langchain-openai`,
+  `langchain-anthropic`, and `langchain-aws` selected by `MODEL_PROVIDER`.
 - Require successful order ID + email verification before any customer, order, shipment, refund, or address data is read or changed. Public policy-only questions do not access customer data and may run without identity.
 - Let agents choose requested operations, but let only the deterministic Policy Engine authorize refunds, cancellations, replacements, and account changes.
 - Require an idempotency key for every write. Perform the business write and its `audit_log` insert in one SQLite transaction.
@@ -29,7 +34,8 @@ agentdesk-ai/
 │   ├── agents/
 │   │   ├── __init__.py
 │   │   ├── interface.py          # Framework-neutral Agent protocol and runner
-│   │   ├── strands_adapter.py    # The only Strands-specific module
+│   │   ├── langchain_adapter.py  # Provider-neutral live model adapter
+│   │   ├── graph.py              # Explicit StateGraph and Pydantic shared state
 │   │   ├── supervisor.py
 │   │   ├── identity.py
 │   │   ├── orders.py
@@ -71,6 +77,8 @@ agentdesk-ai/
 │   └── ui/
 │       ├── __init__.py
 │       └── app.py
+├── docs/
+│   └── ARCHITECTURE.md           # Exported compiled graph Mermaid diagram
 ├── policies/
 │   ├── returns-and-refunds.md
 │   ├── shipping-and-delivery.md
@@ -106,7 +114,8 @@ The generated local SQLite database belongs under an ignored `.local/` directory
 
 - Scaffold the package, `pyproject.toml`, `uv.lock`, configuration, and test directories.
 - Add validated settings for `MODEL_PROVIDER=anthropic|openai|bedrock`; keep provider model IDs in configuration.
-- Define the framework-neutral agent interface and the Strands adapter boundary, after checking the real installed SDK API.
+- Define the framework-neutral agent interface, explicit LangGraph `StateGraph`, and
+  LangChain provider adapter after checking installed APIs and current official docs.
 - Add a record/replay layer keyed by normalized model request, provider, model ID, prompt/template version, and tool schema version.
 - Create SQLite tables for `customers`, `orders`, `shipments`, `refunds`, `addresses`, `audit_log`, and conversation state.
 - Add a deterministic seed command that creates exactly 50 synthetic customers and 150 orders across `processing`, `shipped`, `delivered`, and `delivered-damaged`.
@@ -124,7 +133,9 @@ Run one command to recreate the database, print seed counts/state distribution, 
 - Implement the Supervisor, Identity agent, and read-only Orders agent.
 - Support “Where is my order?” and tracking requests.
 - Enforce verification before order or shipment lookup.
-- Add Streamlit chat and a live side panel showing redacted plan, agent, tool, latency, token, cost, and policy-decision trace data.
+- Add Streamlit chat and a live side panel showing the exported Mermaid graph with the
+  active node highlighted, plus redacted plan, agent, tool, latency, token, cost, and
+  policy-decision trace data.
 - Return a grounded final response based only on typed tool output.
 
 **Demo**
@@ -718,7 +729,10 @@ class PolicyCheckOutput(ContractModel):
 
 ## Implementation guardrails
 
-- Tests target the framework-neutral interfaces; only adapter tests import Strands.
+- Tests target the framework-neutral interfaces; only graph/adapter tests import
+  LangGraph or LangChain provider integrations.
+- Keep the compiled graph export in `docs/ARCHITECTURE.md` synchronized with the graph
+  rendered in Streamlit.
 - Tool code, not prompts, owns identity assertions, policy checks, transactions, idempotency, and audit writes.
 - Tool outputs are the only source for factual action claims in the final response.
 - Policy citations use repository-relative document paths plus stable heading IDs; verifier validation reads the same indexed source files.

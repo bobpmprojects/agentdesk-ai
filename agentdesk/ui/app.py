@@ -1,10 +1,11 @@
 """AgentDesk Streamlit application."""
 
+import html
 from uuid import uuid4
 
 import streamlit as st
 
-from agentdesk.agents.strands_adapter import StrandsModelClient
+from agentdesk.agents.langchain_adapter import LangChainModelClient
 from agentdesk.agents.supervisor import Supervisor
 from agentdesk.config import LLMMode, Settings
 from agentdesk.db.connection import connect
@@ -30,6 +31,44 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 if "trace" not in st.session_state:
     st.session_state.trace = []
+if "active_node" not in st.session_state:
+    st.session_state.active_node = ""
+
+
+def render_mermaid(diagram: str, *, height: int = 560) -> None:
+    st.iframe(
+        f"""
+        <div class="mermaid">{html.escape(diagram)}</div>
+        <script type="module">
+          import mermaid from
+            'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+          mermaid.initialize({{ startOnLoad: false, theme: 'dark' }});
+          await mermaid.run({{ querySelector: '.mermaid' }});
+        </script>
+        """,
+        height=height,
+        width="stretch",
+        alt="AgentDesk LangGraph architecture",
+    )
+
+
+preview_connection = connect(settings.database_path)
+preview_supervisor = Supervisor(Repository(preview_connection), settings)
+preview_mermaid = preview_supervisor.mermaid(st.session_state.active_node or None)
+preview_connection.close()
+
+graph_placeholder = st.sidebar.empty()
+
+
+def show_graph(diagram: str) -> None:
+    with graph_placeholder.container():
+        st.subheader("Live LangGraph")
+        if st.session_state.active_node:
+            st.caption(f"Active node: {st.session_state.active_node}")
+        render_mermaid(diagram)
+
+
+show_graph(preview_mermaid)
 
 with st.sidebar:
     st.subheader("Live agent trace")
@@ -57,13 +96,24 @@ with st.form("customer_request"):
 if submitted:
     st.session_state.messages.append({"role": "user", "content": customer_message})
     connection = connect(settings.database_path)
+    supervisor_ref: dict[str, Supervisor] = {}
+
+    def on_node(node: str) -> None:
+        st.session_state.active_node = node
+        if runtime := supervisor_ref.get("runtime"):
+            show_graph(runtime.mermaid(node))
+
     supervisor = Supervisor(
         Repository(connection),
         settings,
         live_call=(
-            StrandsModelClient(settings) if settings.llm_mode == LLMMode.RECORD else None
+            LangChainModelClient(settings)
+            if settings.llm_mode == LLMMode.RECORD
+            else None
         ),
+        on_node=on_node,
     )
+    supervisor_ref["runtime"] = supervisor
     try:
         context = AgentContext(
             conversation_id=st.session_state.conversation_id,

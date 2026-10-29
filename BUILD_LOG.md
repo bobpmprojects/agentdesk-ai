@@ -304,3 +304,26 @@
   natural-language benchmark.
 - CI is authored and locally validated but cannot be observed on GitHub until a remote
   exists and the repository is pushed.
+
+## Framework migration — Strands to LangGraph
+
+### Built
+
+- Replaced Strands with LangGraph 1.2.18, LangChain Core 1.7.2, and the installed
+  OpenAI, Anthropic, and AWS LangChain provider integrations.
+- Added one explicit compiled `StateGraph` with Supervisor, Identity, Orders,
+  Returns & Refunds, Account, Policy/Knowledge, Verifier, Memory, model-reply, and
+  finalize nodes.
+- Added shared Pydantic `AgentGraphState`, conditional routing, and active-node
+  callbacks while preserving the public Supervisor API.
+- Preserved the deterministic Policy Engine, audit/idempotency behavior, conversation
+  state, and hash-keyed RECORD/REPLAY fixtures.
+- Exported the compiled graph as Mermaid in `docs/ARCHITECTURE.md` and rendered the
+  same graph in Streamlit with active-node highlighting.
+
+### Verification
+
+- `uv run ruff check .`: **passed**
+- `uv run pytest`: **27 passed**
+- Replay evals: **5/5 resolved, 0 policy violations, deterministic**
+- Streamlit graph render and active-node execution path: **visually verified**

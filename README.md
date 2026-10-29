@@ -129,9 +129,14 @@ Streamlit / scripted scenario
  code-first Verifier --> LLM tone/promise check --> final reply
 ```
 
-All Strands SDK imports and provider construction live in
-`agentdesk/agents/strands_adapter.py`. Agent and tool boundaries use Pydantic v2 so the
-framework can be replaced.
+The explicit LangGraph `StateGraph` lives in `agentdesk/agents/graph.py`; its compiled
+Mermaid export and execution paths are documented in
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Streamlit renders the same graph and
+highlights each active node during execution.
+
+LangChain provider construction is isolated in
+`agentdesk/agents/langchain_adapter.py`. Agent, graph-state, and tool boundaries use
+Pydantic v2 so the framework remains replaceable.
 
 ## Record/replay
 
