@@ -17,7 +17,6 @@ from agentdesk.schemas.agents import (
 from agentdesk.schemas.common import AgentContext
 from agentdesk.schemas.tools import AddressInput
 
-
 NEW_ADDRESS = AddressInput(
     line1="900 New Street",
     city="Seattle",

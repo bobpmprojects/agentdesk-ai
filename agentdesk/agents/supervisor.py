@@ -14,20 +14,20 @@ from agentdesk.agents.returns_refunds import ReturnsRefundsAgent
 from agentdesk.agents.verifier import VerifierAgent
 from agentdesk.config import Settings
 from agentdesk.db.repository import Repository
+from agentdesk.runtime.conversation import ConversationStore
 from agentdesk.runtime.replay import (
     LiveCall,
     ModelMessage,
     ModelRequest,
     ReplayCache,
 )
-from agentdesk.runtime.conversation import ConversationStore
 from agentdesk.runtime.tracing import TraceCollector
 from agentdesk.schemas.agents import (
-    IdentityAgentInput,
     AccountAgentInput,
     ContinueConversationInput,
     ConversationState,
     ConversationTurnOutput,
+    IdentityAgentInput,
     MultiIntentSupervisorInput,
     MultiIntentSupervisorOutput,
     OrdersAgentInput,
@@ -38,9 +38,9 @@ from agentdesk.schemas.agents import (
     RefundSupervisorInput,
     RefundSupervisorOutput,
     ReturnsRefundsAgentInput,
+    StartResolutionInput,
     SupervisorInput,
     SupervisorOutput,
-    StartResolutionInput,
     VerifierInput,
 )
 from agentdesk.schemas.common import TraceEvent
@@ -79,7 +79,7 @@ class Supervisor:
         args: dict[str, object] | None = None,
         input_tokens: int = 0,
         output_tokens: int = 0,
-        cost_usd: Decimal = Decimal("0"),
+        cost_usd: Decimal = Decimal(0),
     ) -> None:
         self.trace.add(
             TraceEvent(
@@ -187,7 +187,8 @@ class Supervisor:
                     role="user",
                     content=(
                         f"Customer question: {request.context.customer_message}\n"
-                        f"Verified order facts: {order.model_dump_json()}"
+                        f"Verified order facts: "
+                        f"{order.model_dump_json(exclude_none=True)}"
                     ),
                 ),
             ],

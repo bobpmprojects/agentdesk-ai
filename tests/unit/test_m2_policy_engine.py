@@ -36,7 +36,7 @@ def test_identity_is_required_before_other_policy_rules() -> None:
             operation="cancel",
             identity_verified=False,
             order_status="processing",
-            order_total=Money(amount=Decimal("10")),
+            order_total=Money(amount=Decimal(10)),
         )
     )
     assert decision.allowed is False

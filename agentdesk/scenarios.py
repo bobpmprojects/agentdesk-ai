@@ -22,7 +22,6 @@ from agentdesk.schemas.agents import (
 from agentdesk.schemas.common import AgentContext
 from agentdesk.schemas.tools import AddressInput
 
-
 DEMO_CONVERSATION_ID = UUID("00000000-0000-0000-0000-000000000001")
 DEMO_TURN_ID = UUID("00000000-0000-0000-0000-000000000101")
 

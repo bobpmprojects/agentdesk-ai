@@ -10,7 +10,6 @@ from uuid import NAMESPACE_URL, uuid5
 from agentdesk.config import Settings
 from agentdesk.db.connection import initialize_database
 
-
 STATUSES = ("processing", "shipped", "delivered", "delivered-damaged")
 ITEMS = ("Blender", "Kettle", "Toaster", "Desk Lamp")
 

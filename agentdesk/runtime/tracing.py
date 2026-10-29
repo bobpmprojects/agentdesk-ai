@@ -6,7 +6,6 @@ from typing import Any
 
 from agentdesk.schemas.common import TraceEvent
 
-
 _SENSITIVE_KEYS = {
     "email",
     "line1",

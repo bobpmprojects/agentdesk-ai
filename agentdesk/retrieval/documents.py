@@ -7,7 +7,6 @@ from pathlib import Path
 
 from agentdesk.schemas.common import ContractModel
 
-
 SECTION_HEADING = re.compile(r"^##\s+(.+?)\s+\{#([a-z0-9-]+)\}\s*$")
 
 

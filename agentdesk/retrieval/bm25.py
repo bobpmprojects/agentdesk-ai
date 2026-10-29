@@ -8,7 +8,6 @@ from collections import Counter
 
 from agentdesk.retrieval.documents import PolicySection
 
-
 TOKEN = re.compile(r"[a-z0-9]+")
 STOP_WORDS = {
     "a",

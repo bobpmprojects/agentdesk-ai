@@ -260,3 +260,47 @@
   Streamlit form does not yet expose controls for every resolution transition.
 - Conversation state is local SQLite only, with no expiry or multi-process locking
   beyond SQLite transactions.
+
+## M6 — Evals, CI, and documentation
+
+### Built
+
+- Five committed replay eval cases covering order status, refund boundaries,
+  multi-intent partial success, policy grounding, and multi-turn revision.
+- Machine-readable eval runner scoring task resolution, policy violations, grounded
+  actions, citation validity, unnecessary escalation, and replay determinism.
+- Nonzero eval exit when policy violations or another required quality gate fails.
+- GitHub Actions workflow running frozen `uv` install, Ruff, pytest, and no-key replay
+  evals.
+- Complete setup, provider, live/replay demo, architecture, testing, and limitations
+  documentation.
+- Ruff dependency and repository-wide safe style normalization.
+
+### Files changed
+
+- CI/tooling: `.github/workflows/ci.yml`, `pyproject.toml`, `uv.lock`
+- Evals: `agentdesk/evals.py`, `fixtures/eval_cases/core.json`,
+  `tests/evals/test_replay_evals.py`
+- Documentation: `README.md`
+- Quality normalization: Python imports and equivalent Ruff-safe constructor/style
+  fixes across `agentdesk/` and `tests/`
+
+### Verification
+
+- `uv run ruff check .`: **passed**
+- `uv run pytest`: **24 passed**
+- Replay evals: **5/5 resolved, 0 policy violations, 1.0 grounded actions,
+  1.0 citation validity, 0 unnecessary escalations, deterministic**
+- Streamlit headless replay health check: **passed**
+
+### Acceptance criteria met
+
+- **AC10:** committed fixtures and evals run without live model access locally and in
+  GitHub Actions, with zero policy violations and valid claims/citations.
+
+### Known gaps or shortcuts
+
+- Evals are five deterministic high-value scenarios rather than a statistically broad
+  natural-language benchmark.
+- CI is authored and locally validated but cannot be observed on GitHub until a remote
+  exists and the repository is pushed.

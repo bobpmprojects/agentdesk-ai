@@ -10,6 +10,7 @@ from uuid import UUID, uuid4
 
 from agentdesk.schemas.common import Money, PolicyDecision, VerifiedIdentity
 from agentdesk.schemas.tools import (
+    AddressInput,
     AuditRecord,
     CancelOrderResult,
     ChangeShippingAddressResult,
@@ -24,7 +25,6 @@ from agentdesk.schemas.tools import (
     UpdateContactPreferencesResult,
     VerifyIdentityResult,
 )
-from agentdesk.schemas.tools import AddressInput
 
 
 class Repository:
@@ -76,7 +76,7 @@ class Repository:
                 order_id=order_id,
                 status="processing",
                 ordered_at=identity.verified_at,
-                total=Money(amount=Decimal("0")),
+                total=Money(amount=Decimal(0)),
                 error=ToolError(
                     code="identity_required",
                     message="Identity verification is required for this order.",
@@ -94,7 +94,7 @@ class Repository:
                 order_id=order_id,
                 status="processing",
                 ordered_at=identity.verified_at,
-                total=Money(amount=Decimal("0")),
+                total=Money(amount=Decimal(0)),
                 error=ToolError(code="not_found", message="Order not found."),
             )
         return GetOrderResult(

@@ -14,7 +14,6 @@ from agentdesk.runtime.replay import ReplayMissError
 from agentdesk.schemas.agents import PolicySupervisorInput, SupervisorInput
 from agentdesk.schemas.common import AgentContext
 
-
 st.set_page_config(page_title="AgentDesk", page_icon="🧭", layout="wide")
 settings = Settings()
 if not settings.database_path.exists():

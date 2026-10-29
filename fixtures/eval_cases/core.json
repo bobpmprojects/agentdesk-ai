@@ -1,0 +1,27 @@
+[
+  {
+    "id": "m1-order-status",
+    "scenario": "m1",
+    "expected_text": "ORD-0002"
+  },
+  {
+    "id": "m2-refund-boundaries",
+    "scenario": "m2",
+    "expected_text": "store credit"
+  },
+  {
+    "id": "m3-multi-intent",
+    "scenario": "m3",
+    "expected_text": "Denied"
+  },
+  {
+    "id": "m4-policy-grounding",
+    "scenario": "m4",
+    "expected_text": "returns-and-refunds.md#refund-limit"
+  },
+  {
+    "id": "m5-follow-up",
+    "scenario": "m5",
+    "expected_text": "store credit"
+  }
+]

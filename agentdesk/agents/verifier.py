@@ -20,7 +20,6 @@ from agentdesk.schemas.tools import (
 from agentdesk.tools.policy_search import validate_citations
 from agentdesk.tools.support import lookup_audit_actions
 
-
 SAFE_FALLBACK = (
     "I can't confirm a fully supported answer right now. "
     "Please contact Northwind Goods support for review."

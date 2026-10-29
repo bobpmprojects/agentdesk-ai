@@ -98,4 +98,4 @@ class TraceEvent(ContractModel):
     latency_ms: int = Field(ge=0)
     input_tokens: int = Field(default=0, ge=0)
     output_tokens: int = Field(default=0, ge=0)
-    cost_usd: Decimal = Field(default=Decimal("0"), ge=0)
+    cost_usd: Decimal = Field(default=Decimal(0), ge=0)
