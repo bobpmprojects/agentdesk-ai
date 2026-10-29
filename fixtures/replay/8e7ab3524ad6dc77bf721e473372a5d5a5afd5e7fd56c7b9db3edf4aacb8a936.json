@@ -1,0 +1,26 @@
+{
+  "request": {
+    "messages": [
+      {
+        "content": "Write one concise customer-service reply using only the supplied order facts. Do not invent promises, dates, or actions.",
+        "role": "system"
+      },
+      {
+        "content": "Customer question: Where is my order?\nVerified order facts: {\"order_id\":\"ORD-0002\",\"status\":\"shipped\",\"ordered_total\":{\"amount\":\"99\",\"currency\":\"USD\"},\"carrier\":\"Northwind Parcel\",\"tracking_number_redacted\":\"\u2022\u2022\u2022\u20220002\",\"estimated_delivery\":\"2026-09-29\"}",
+        "role": "user"
+      }
+    ],
+    "model_id": "gpt-4o",
+    "provider": "openai",
+    "template_version": "m1-order-status-v1",
+    "tool_schema_version": "m1-v1"
+  },
+  "response": {
+    "text": "Your order (ORD-0002) has been shipped via Northwind Parcel and is on its way. The tracking number ending in \u2022\u2022\u2022\u20220002 can be used to monitor its progress. The estimated delivery date is September 29, 2026.",
+    "usage": {
+      "cost_usd": 0.0,
+      "input_tokens": 112,
+      "output_tokens": 53
+    }
+  }
+}

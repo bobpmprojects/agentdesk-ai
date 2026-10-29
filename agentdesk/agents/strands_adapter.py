@@ -57,9 +57,15 @@ class StrandsModelClient:
             callback_handler=None,
         )
         result = agent(prompt)
-        usage = result.metrics.accumulated_usage
+        text = "".join(
+            block["text"]
+            for block in result.message.get("content", [])
+            if isinstance(block, dict) and "text" in block
+        )
+        invocation = result.metrics.latest_agent_invocation
+        usage = invocation.usage if invocation else {}
         return ModelResponse(
-            text=str(result).strip(),
+            text=text.strip(),
             usage=ModelUsage(
                 input_tokens=usage.get("inputTokens", 0),
                 output_tokens=usage.get("outputTokens", 0),

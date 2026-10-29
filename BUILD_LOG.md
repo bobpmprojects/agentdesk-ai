@@ -47,3 +47,43 @@
 - Cost remains zero unless a provider supplies explicit pricing; token counts are
   captured by the Strands adapter.
 - The Streamlit screen is intentionally a foundation placeholder until M1.
+
+## M1 — Verified order-status vertical slice
+
+### Built
+
+- Typed Supervisor, Identity, and Orders agents with specialists invoked in a fixed,
+  dependency-ordered plan.
+- Order ID + email verification gate before order or shipment data access.
+- Read-only order and tracking tools backed by the SQLite repository.
+- Grounded final-reply model request containing only verified typed order facts.
+- Streamlit chat form and live redacted trace panel.
+- Scripted `m1` demo with real-provider RECORD and strict REPLAY modes.
+
+### Files changed
+
+- Agents and tools: `agentdesk/agents/{identity,orders,supervisor}.py`,
+  `agentdesk/tools/{identity,orders}.py`
+- Contracts/data: `agentdesk/schemas/{agents,tools}.py`,
+  `agentdesk/db/repository.py`
+- Demo/UI: `agentdesk/scenarios.py`, `agentdesk/ui/app.py`, `pyproject.toml`
+- Tests: `tests/integration/test_m1_order_status.py`
+- Replay: `fixtures/replay/`
+
+### Verification
+
+- `uv run pytest`: **8 passed**
+- M1 OpenAI RECORD then REPLAY: **final outputs identical**
+- Streamlit headless health check: **passed**
+
+### Acceptance criteria met
+
+- **AC2:** mismatched identity stops before every protected order/shipment lookup.
+- **AC3:** a verified shipped order returns database-backed status/tracking data and a
+  redacted ordered trace.
+
+### Known gaps or shortcuts
+
+- M1 intent detection is deliberately limited to the order-status/tracking vertical
+  slice; multi-intent planning arrives in M3.
+- Provider-reported token counts are captured, but provider pricing is not inferred.
