@@ -11,8 +11,13 @@ from agentdesk.config import LLMMode, Settings
 from agentdesk.db.connection import connect
 from agentdesk.db.repository import Repository
 from agentdesk.db.seed import seed_database
-from agentdesk.schemas.agents import RefundSupervisorInput, SupervisorInput
+from agentdesk.schemas.agents import (
+    MultiIntentSupervisorInput,
+    RefundSupervisorInput,
+    SupervisorInput,
+)
 from agentdesk.schemas.common import AgentContext
+from agentdesk.schemas.tools import AddressInput
 
 
 DEMO_CONVERSATION_ID = UUID("00000000-0000-0000-0000-000000000001")
@@ -99,9 +104,58 @@ def run_m2(settings: Settings) -> str:
         connection.close()
 
 
+def run_m3(settings: Settings) -> str:
+    seed_database(settings.database_path)
+    connection = connect(settings.database_path)
+    try:
+        supervisor = Supervisor(
+            Repository(connection),
+            settings,
+            live_call=(
+                StrandsModelClient(settings)
+                if settings.llm_mode == LLMMode.RECORD
+                else None
+            ),
+        )
+        result = supervisor.run_multi_intent(
+            MultiIntentSupervisorInput(
+                context=AgentContext(
+                    conversation_id=DEMO_CONVERSATION_ID,
+                    turn_id=UUID("00000000-0000-0000-0000-000000000301"),
+                    customer_message=(
+                        "My blender arrived broken, refund it and update my "
+                        "shipping address"
+                    ),
+                ),
+                order_id="ORD-0008",
+                email="customer003@northwind.test",
+                item_id="ITEM-0008",
+                new_address=AddressInput(
+                    line1="900 New Street",
+                    city="Seattle",
+                    region="WA",
+                    postal_code="98101",
+                    country_code="US",
+                ),
+                refund_idempotency_key=UUID(
+                    "00000000-0000-0000-0000-000000003001"
+                ),
+                address_idempotency_key=UUID(
+                    "00000000-0000-0000-0000-000000003002"
+                ),
+                replacement_idempotency_key=UUID(
+                    "00000000-0000-0000-0000-000000003003"
+                ),
+            )
+        )
+        return result.final_reply
+    finally:
+        connection.close()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run an AgentDesk milestone scenario")
-    parser.add_argument("milestone", choices=["m1", "m2"])
+    parser.add_argument("milestone", choices=["m1", "m2", "m3"])
     parser.add_argument("--mode", choices=["record", "replay"], required=True)
     args = parser.parse_args()
     settings = Settings(llm_mode=args.mode)
@@ -109,6 +163,8 @@ def main() -> None:
         print(run_m1(settings))
     elif args.milestone == "m2":
         print(run_m2(settings))
+    elif args.milestone == "m3":
+        print(run_m3(settings))
 
 
 if __name__ == "__main__":

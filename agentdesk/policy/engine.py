@@ -18,13 +18,21 @@ from agentdesk.schemas.common import (
 
 class PolicyCheckInput(ContractModel):
     operation: Literal[
-        "cancel", "return", "refund", "store_credit", "replace"
+        "cancel",
+        "return",
+        "refund",
+        "store_credit",
+        "replace",
+        "change_shipping_address",
+        "update_contact_preferences",
     ]
     identity_verified: bool
     order_status: OrderStatus
     order_total: Money
     requested_amount: Money | None = None
     delivered_at: datetime | None = None
+    address_change_count: int = Field(default=0, ge=0)
+    replacement_context: bool = False
     now: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
@@ -73,6 +81,43 @@ class PolicyEngine:
                     else "The order has already shipped or completed."
                 ),
                 alternative=None if allowed else "Request a return after delivery.",
+            )
+
+        if check.operation == "change_shipping_address":
+            if check.address_change_count >= 1:
+                return self._decision(
+                    check,
+                    allowed=False,
+                    rule_id="one-address-change-per-order",
+                    reason="The shipping address has already been changed once.",
+                )
+            allowed = check.order_status == OrderStatus.PROCESSING or (
+                check.replacement_context
+                and check.order_status
+                in {OrderStatus.DELIVERED, OrderStatus.DELIVERED_DAMAGED}
+            )
+            return self._decision(
+                check,
+                allowed=allowed,
+                rule_id="address-before-shipment",
+                reason=(
+                    "The shipping address may be changed once before fulfillment."
+                    if allowed
+                    else "The order has already shipped, so its address cannot be changed."
+                ),
+                alternative=(
+                    None
+                    if allowed
+                    else "Use the new address for a future order or eligible replacement."
+                ),
+            )
+
+        if check.operation == "update_contact_preferences":
+            return self._decision(
+                check,
+                allowed=True,
+                rule_id="verified-contact-preferences",
+                reason="Verified customers may update contact preferences.",
             )
 
         if check.delivered_at is None:

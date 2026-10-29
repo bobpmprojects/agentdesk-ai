@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
+from agentdesk.agents.account import AccountAgent
 from agentdesk.agents.identity import IdentityAgent
 from agentdesk.agents.orders import OrdersAgent
 from agentdesk.agents.returns_refunds import ReturnsRefundsAgent
@@ -20,6 +21,9 @@ from agentdesk.runtime.replay import (
 from agentdesk.runtime.tracing import TraceCollector
 from agentdesk.schemas.agents import (
     IdentityAgentInput,
+    AccountAgentInput,
+    MultiIntentSupervisorInput,
+    MultiIntentSupervisorOutput,
     OrdersAgentInput,
     PlanStep,
     RefundSupervisorInput,
@@ -43,6 +47,7 @@ class Supervisor:
         self.identity_agent = IdentityAgent(repository)
         self.orders_agent = OrdersAgent(repository)
         self.returns_refunds_agent = ReturnsRefundsAgent(repository)
+        self.account_agent = AccountAgent(repository)
         self.replay = ReplayCache(settings.replay_dir, settings.llm_mode)
         self.live_call = live_call
         self.trace = TraceCollector()
@@ -314,4 +319,217 @@ class Supervisor:
             plan=plan,
             final_reply=response.text,
             resolution=resolution,
+        )
+
+    def run_multi_intent(
+        self, request: MultiIntentSupervisorInput
+    ) -> MultiIntentSupervisorOutput:
+        replacement = "replace" in request.context.customer_message.lower()
+        resolution_intent = "replacement" if replacement else "refund"
+        if replacement:
+            plan = [
+                PlanStep(
+                    step_id="verify",
+                    intent="replacement",
+                    specialist="identity",
+                    requested_operation="verify_identity",
+                ),
+                PlanStep(
+                    step_id="assess",
+                    intent="replacement",
+                    specialist="returns_refunds",
+                    depends_on=["verify"],
+                    requested_operation="assess_return",
+                ),
+                PlanStep(
+                    step_id="address",
+                    intent="address_change",
+                    specialist="account",
+                    depends_on=["assess"],
+                    requested_operation="change_shipping_address",
+                ),
+                PlanStep(
+                    step_id="replace",
+                    intent="replacement",
+                    specialist="returns_refunds",
+                    depends_on=["address"],
+                    requested_operation="create_replacement",
+                ),
+            ]
+        else:
+            plan = [
+                PlanStep(
+                    step_id="verify",
+                    intent="refund",
+                    specialist="identity",
+                    requested_operation="verify_identity",
+                ),
+                PlanStep(
+                    step_id="refund",
+                    intent="refund",
+                    specialist="returns_refunds",
+                    depends_on=["verify"],
+                    requested_operation="create_refund",
+                ),
+                PlanStep(
+                    step_id="address",
+                    intent="address_change",
+                    specialist="account",
+                    depends_on=["verify"],
+                    requested_operation="change_shipping_address",
+                ),
+            ]
+        self._trace(request, "agent_start", "supervisor", args={"plan": plan})
+        identity_result = self.identity_agent.run(
+            IdentityAgentInput(
+                context=request.context,
+                order_id=request.order_id,
+                email=request.email,
+            )
+        )
+        if not identity_result.verified or identity_result.identity is None:
+            return MultiIntentSupervisorOutput(
+                intents=[resolution_intent, "address_change"],
+                plan=plan,
+                final_reply=(
+                    "I couldn't verify the order, so no requested action was attempted."
+                ),
+            )
+        context = request.context.model_copy(
+            update={
+                "identity": identity_result.identity,
+                "active_order_id": request.order_id,
+            }
+        )
+        actions = []
+        facts: list[dict[str, object]] = []
+        if replacement:
+            assessment = self.returns_refunds_agent.run(
+                ReturnsRefundsAgentInput(
+                    context=context,
+                    task="assess_return",
+                    item_id=request.item_id,
+                    reason="damaged",
+                )
+            )
+            facts.append(
+                {
+                    "step": "assess replacement",
+                    "allowed": assessment.eligible,
+                    "reason": assessment.explanation,
+                }
+            )
+            if assessment.eligible:
+                address = self.account_agent.run(
+                    AccountAgentInput(
+                        context=context,
+                        task="change_shipping_address",
+                        new_address=request.new_address,
+                        idempotency_key=request.address_idempotency_key,
+                        replacement_context=True,
+                    )
+                )
+                facts.append(
+                    {
+                        "step": "change replacement address",
+                        "allowed": address.changed,
+                        "reason": address.explanation,
+                    }
+                )
+                if address.action:
+                    actions.append(address.action)
+                if address.changed:
+                    result = self.returns_refunds_agent.run(
+                        ReturnsRefundsAgentInput(
+                            context=context,
+                            task="replace",
+                            item_id=request.item_id,
+                            reason="damaged",
+                            idempotency_key=request.replacement_idempotency_key,
+                        )
+                    )
+                    facts.append(
+                        {
+                            "step": "create replacement",
+                            "allowed": result.eligible,
+                            "reason": result.explanation,
+                        }
+                    )
+                    if result.action:
+                        actions.append(result.action)
+        else:
+            result = self.returns_refunds_agent.run(
+                ReturnsRefundsAgentInput(
+                    context=context,
+                    task="refund",
+                    item_id=request.item_id,
+                    reason="damaged",
+                    idempotency_key=request.refund_idempotency_key,
+                )
+            )
+            facts.append(
+                {
+                    "step": "refund",
+                    "allowed": result.eligible,
+                    "amount": str(result.amount.amount) if result.amount else None,
+                    "reason": result.explanation,
+                }
+            )
+            if result.action:
+                actions.append(result.action)
+            address = self.account_agent.run(
+                AccountAgentInput(
+                    context=context,
+                    task="change_shipping_address",
+                    new_address=request.new_address,
+                    idempotency_key=request.address_idempotency_key,
+                )
+            )
+            facts.append(
+                {
+                    "step": "change original order address",
+                    "allowed": address.changed,
+                    "reason": address.explanation,
+                }
+            )
+            if address.action:
+                actions.append(address.action)
+
+        model_request = ModelRequest(
+            provider=self.settings.model_provider,
+            model_id=self.settings.model_id,
+            messages=[
+                ModelMessage(
+                    role="system",
+                    content=(
+                        "Summarize the ordered results using only these facts. "
+                        "Clearly distinguish completed and denied steps."
+                    ),
+                ),
+                ModelMessage(
+                    role="user",
+                    content=(
+                        f"Customer request: {request.context.customer_message}\n"
+                        f"Ordered step results: {facts}"
+                    ),
+                ),
+            ],
+            template_version="m3-multi-intent-v1",
+            tool_schema_version="m3-v1",
+        )
+        response = self.replay.invoke(model_request, self.live_call)
+        self._trace(
+            request,
+            "model_call",
+            "supervisor",
+            input_tokens=response.usage.input_tokens,
+            output_tokens=response.usage.output_tokens,
+            cost_usd=Decimal(str(response.usage.cost_usd)),
+        )
+        self._trace(request, "agent_end", "supervisor")
+        return MultiIntentSupervisorOutput(
+            intents=[resolution_intent, "address_change"],
+            plan=plan,
+            final_reply=response.text,
+            actions=actions,
         )

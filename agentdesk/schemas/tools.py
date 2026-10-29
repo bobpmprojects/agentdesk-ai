@@ -161,3 +161,42 @@ class CreateReplacementResult(ContractModel):
     decision: PolicyDecision
     audit: AuditRecord
     error: ToolError | None = None
+
+
+class AddressInput(ContractModel):
+    line1: str
+    line2: str | None = None
+    city: str
+    region: str
+    postal_code: str
+    country_code: str = Field(min_length=2, max_length=2)
+
+
+class ChangeShippingAddressArgs(ContractModel):
+    identity: VerifiedIdentity
+    order_id: str
+    address: AddressInput
+    idempotency_key: UUID
+    replacement_context: bool = False
+
+
+class ChangeShippingAddressResult(ContractModel):
+    address_id: UUID | None = None
+    change_count: int = Field(ge=0, le=1)
+    decision: PolicyDecision
+    audit: AuditRecord
+    error: ToolError | None = None
+
+
+class UpdateContactPreferencesArgs(ContractModel):
+    identity: VerifiedIdentity
+    email_opt_in: bool | None = None
+    sms_opt_in: bool | None = None
+    idempotency_key: UUID
+
+
+class UpdateContactPreferencesResult(ContractModel):
+    updated: bool
+    decision: PolicyDecision
+    audit: AuditRecord
+    error: ToolError | None = None

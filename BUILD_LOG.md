@@ -134,3 +134,44 @@
   audit effects; there is no external carrier or fulfillment integration.
 - The provider may phrase fulfillment timing conversationally in M2; unsupported-promise
   enforcement is added by the M4 verifier.
+
+## M3 — Account changes and multi-intent execution
+
+### Built
+
+- Account specialist and typed tools for shipping-address and contact-preference changes.
+- Deterministic one-address-change-per-order and before-shipment policy checks, with an
+  explicit replacement-destination path.
+- Supervisor decomposition and dependency ordering for refund/address and
+  replacement/address requests.
+- Safe partial execution: independent eligible work continues when another intent is
+  policy-denied.
+- Scripted M3 damaged-blender refund plus shipping-address request.
+
+### Files changed
+
+- Account: `agentdesk/agents/account.py`, `agentdesk/tools/account.py`
+- Planning/contracts/policy: `agentdesk/agents/supervisor.py`,
+  `agentdesk/schemas/{agents,tools}.py`, `agentdesk/policy/engine.py`
+- Persistence: `agentdesk/db/repository.py`
+- Demo/tests: `agentdesk/scenarios.py`,
+  `tests/integration/test_m3_multi_intent.py`
+- Replay: `fixtures/replay/`
+
+### Verification
+
+- `uv run pytest`: **18 passed**
+- M3 OpenAI RECORD then REPLAY: **final outputs identical**
+- Streamlit headless health check: **passed**
+
+### Acceptance criteria met
+
+- **AC7:** a replacement/address request executes verify → assess → address →
+  replacement, and a subsequent address change is policy-denied; independent
+  refund/address requests safely preserve the eligible refund.
+
+### Known gaps or shortcuts
+
+- M3 intent extraction is deterministic keyword routing for the two planned demo shapes;
+  a model-generated plan is intentionally deferred in favor of predictable guardrails.
+- Address validation is structural and synthetic; no postal-service validation is used.

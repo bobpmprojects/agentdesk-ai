@@ -12,6 +12,7 @@ from agentdesk.schemas.common import Money, PolicyDecision, VerifiedIdentity
 from agentdesk.schemas.tools import (
     AuditRecord,
     CancelOrderResult,
+    ChangeShippingAddressResult,
     CreateRefundResult,
     CreateReplacementResult,
     CreateReturnLabelResult,
@@ -19,8 +20,10 @@ from agentdesk.schemas.tools import (
     GetTrackingResult,
     IssueStoreCreditResult,
     ToolError,
+    UpdateContactPreferencesResult,
     VerifyIdentityResult,
 )
+from agentdesk.schemas.tools import AddressInput
 
 
 class Repository:
@@ -377,4 +380,145 @@ class Repository:
             decision=decision,
             audit=audit,
             error=error,
+        )
+
+    def address_change_count(
+        self, identity: VerifiedIdentity, order_id: str
+    ) -> int:
+        if not self._identity_matches(identity, order_id):
+            raise PermissionError("Identity verification is required for this order")
+        row = self.connection.execute(
+            "SELECT address_change_count FROM orders WHERE id = ?",
+            (order_id,),
+        ).fetchone()
+        if row is None:
+            raise LookupError("Order not found")
+        return int(row["address_change_count"])
+
+    def change_shipping_address(
+        self,
+        identity: VerifiedIdentity,
+        order_id: str,
+        address: AddressInput,
+        idempotency_key: UUID,
+        decision: PolicyDecision,
+    ) -> ChangeShippingAddressResult:
+        if not self._identity_matches(identity, order_id):
+            raise PermissionError("Identity verification is required for this order")
+        existing = self._existing_audit(idempotency_key)
+        if existing:
+            details = json.loads(existing["details_json"])
+            return ChangeShippingAddressResult(
+                address_id=details.get("address_id"),
+                change_count=details["change_count"],
+                decision=decision,
+                audit=self._audit_record(existing),
+                error=(
+                    None
+                    if existing["outcome"] == "committed"
+                    else ToolError(code="policy_denied", message=decision.reason)
+                ),
+            )
+
+        current_count = self.address_change_count(identity, order_id)
+        address_id = uuid4() if decision.allowed else None
+        new_count = current_count + 1 if decision.allowed else current_count
+        with self.connection:
+            if address_id:
+                self.connection.execute(
+                    """
+                    INSERT INTO addresses (
+                        id, customer_id, line1, line2, city, region,
+                        postal_code, country_code
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        str(address_id),
+                        str(identity.customer_id),
+                        address.line1,
+                        address.line2,
+                        address.city,
+                        address.region,
+                        address.postal_code,
+                        address.country_code,
+                    ),
+                )
+                self.connection.execute(
+                    """
+                    UPDATE orders
+                    SET shipping_address_id = ?, address_change_count = ?
+                    WHERE id = ?
+                    """,
+                    (str(address_id), new_count, order_id),
+                )
+            audit = self._insert_audit(
+                order_id=order_id,
+                idempotency_key=idempotency_key,
+                operation="change_shipping_address",
+                outcome="committed" if decision.allowed else "denied",
+                decision=decision,
+                details={
+                    "address_id": str(address_id) if address_id else None,
+                    "change_count": new_count,
+                },
+            )
+        return ChangeShippingAddressResult(
+            address_id=address_id,
+            change_count=new_count,
+            decision=decision,
+            audit=audit,
+            error=(
+                None
+                if decision.allowed
+                else ToolError(code="policy_denied", message=decision.reason)
+            ),
+        )
+
+    def update_contact_preferences(
+        self,
+        identity: VerifiedIdentity,
+        email_opt_in: bool | None,
+        sms_opt_in: bool | None,
+        idempotency_key: UUID,
+        decision: PolicyDecision,
+    ) -> UpdateContactPreferencesResult:
+        if not self._identity_matches(identity, identity.order_id):
+            raise PermissionError("Identity verification is required")
+        existing = self._existing_audit(idempotency_key)
+        if existing:
+            return UpdateContactPreferencesResult(
+                updated=existing["outcome"] == "committed",
+                decision=decision,
+                audit=self._audit_record(existing),
+            )
+        assignments: list[str] = []
+        values: list[object] = []
+        if email_opt_in is not None:
+            assignments.append("email_opt_in = ?")
+            values.append(int(email_opt_in))
+        if sms_opt_in is not None:
+            assignments.append("sms_opt_in = ?")
+            values.append(int(sms_opt_in))
+        if not assignments:
+            raise ValueError("At least one contact preference is required")
+        with self.connection:
+            self.connection.execute(
+                f"UPDATE customers SET {', '.join(assignments)} WHERE id = ?",
+                (*values, str(identity.customer_id)),
+            )
+            audit = self._insert_audit(
+                order_id=identity.order_id,
+                idempotency_key=idempotency_key,
+                operation="update_contact_preferences",
+                outcome="committed",
+                decision=decision,
+                details={
+                    "email_opt_in": email_opt_in,
+                    "sms_opt_in": sms_opt_in,
+                },
+            )
+        return UpdateContactPreferencesResult(
+            updated=True,
+            decision=decision,
+            audit=audit,
         )

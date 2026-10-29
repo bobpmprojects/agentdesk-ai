@@ -1,0 +1,26 @@
+{
+  "request": {
+    "messages": [
+      {
+        "content": "Summarize the ordered results using only these facts. Clearly distinguish completed and denied steps.",
+        "role": "system"
+      },
+      {
+        "content": "Customer request: My blender arrived broken, refund it and update my shipping address\nOrdered step results: [{'step': 'refund', 'allowed': True, 'amount': '149', 'reason': 'The refund is within $200 and 30 days of delivery.'}, {'step': 'change original order address', 'allowed': False, 'reason': 'The order has already shipped, so its address cannot be changed. Use the new address for a future order or eligible replacement.'}]",
+        "role": "user"
+      }
+    ],
+    "model_id": "gpt-4o",
+    "provider": "openai",
+    "template_version": "m3-multi-intent-v1",
+    "tool_schema_version": "m3-v1"
+  },
+  "response": {
+    "text": "Completed Steps:\n- Refund: Approved for $149 because it is within $200 and 30 days of delivery.\n\nDenied Steps:\n- Change Original Order Address: Denied because the order has already shipped. The new address can be used for a future order or eligible replacement.",
+    "usage": {
+      "cost_usd": 0.0,
+      "input_tokens": 142,
+      "output_tokens": 56
+    }
+  }
+}

@@ -16,6 +16,7 @@ from agentdesk.schemas.common import (
     PolicyDecision,
     VerifiedIdentity,
 )
+from agentdesk.schemas.tools import AddressInput
 
 
 class PlanStep(ContractModel):
@@ -103,3 +104,38 @@ class RefundSupervisorOutput(ContractModel):
     plan: list[PlanStep] = Field(min_length=1)
     final_reply: str
     resolution: ReturnsRefundsAgentOutput | None = None
+
+
+class AccountAgentInput(ContractModel):
+    context: AgentContext
+    task: Literal["change_shipping_address", "update_contact_preferences"]
+    new_address: AddressInput | None = None
+    email_opt_in: bool | None = None
+    sms_opt_in: bool | None = None
+    idempotency_key: UUID
+    replacement_context: bool = False
+
+
+class AccountAgentOutput(ContractModel):
+    changed: bool
+    policy_decision: PolicyDecision
+    action: ActionClaim | None = None
+    explanation: str
+
+
+class MultiIntentSupervisorInput(ContractModel):
+    context: AgentContext
+    order_id: str
+    email: SecretStr
+    item_id: str
+    new_address: AddressInput
+    refund_idempotency_key: UUID
+    address_idempotency_key: UUID
+    replacement_idempotency_key: UUID
+
+
+class MultiIntentSupervisorOutput(ContractModel):
+    intents: list[Intent] = Field(min_length=2, max_length=3)
+    plan: list[PlanStep] = Field(min_length=3)
+    final_reply: str
+    actions: list[ActionClaim] = Field(default_factory=list)
