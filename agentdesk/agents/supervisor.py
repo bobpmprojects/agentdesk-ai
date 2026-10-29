@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from agentdesk.agents.identity import IdentityAgent
 from agentdesk.agents.orders import OrdersAgent
+from agentdesk.agents.returns_refunds import ReturnsRefundsAgent
 from agentdesk.config import Settings
 from agentdesk.db.repository import Repository
 from agentdesk.runtime.replay import (
@@ -21,6 +22,9 @@ from agentdesk.schemas.agents import (
     IdentityAgentInput,
     OrdersAgentInput,
     PlanStep,
+    RefundSupervisorInput,
+    RefundSupervisorOutput,
+    ReturnsRefundsAgentInput,
     SupervisorInput,
     SupervisorOutput,
 )
@@ -38,6 +42,7 @@ class Supervisor:
         self.settings = settings
         self.identity_agent = IdentityAgent(repository)
         self.orders_agent = OrdersAgent(repository)
+        self.returns_refunds_agent = ReturnsRefundsAgent(repository)
         self.replay = ReplayCache(settings.replay_dir, settings.llm_mode)
         self.live_call = live_call
         self.trace = TraceCollector()
@@ -181,4 +186,132 @@ class Supervisor:
             intents=["order_status"],
             plan=plan,
             final_reply=response.text,
+        )
+
+    def run_refund(self, request: RefundSupervisorInput) -> RefundSupervisorOutput:
+        plan = [
+            PlanStep(
+                step_id="verify",
+                intent="refund",
+                specialist="identity",
+                requested_operation="verify_identity",
+            ),
+            PlanStep(
+                step_id="refund",
+                intent="refund",
+                specialist="returns_refunds",
+                depends_on=["verify"],
+                requested_operation="create_refund",
+            ),
+        ]
+        self._trace(
+            request, "agent_start", "supervisor", args={"plan": plan}
+        )
+        self._trace(
+            request,
+            "tool_start",
+            "identity",
+            tool="verify_identity",
+            args={"order_id": request.order_id, "email": request.email.get_secret_value()},
+        )
+        identity_result = self.identity_agent.run(
+            IdentityAgentInput(
+                context=request.context,
+                order_id=request.order_id,
+                email=request.email,
+            )
+        )
+        self._trace(
+            request,
+            "tool_end",
+            "identity",
+            tool="verify_identity",
+            args={"verified": identity_result.verified},
+        )
+        if not identity_result.verified or identity_result.identity is None:
+            self._trace(request, "agent_end", "supervisor")
+            return RefundSupervisorOutput(
+                plan=plan,
+                final_reply=(
+                    "I couldn't verify that order ID and email combination, "
+                    "so no refund was attempted."
+                ),
+            )
+
+        protected_context = request.context.model_copy(
+            update={
+                "identity": identity_result.identity,
+                "active_order_id": request.order_id,
+            }
+        )
+        self._trace(
+            request,
+            "tool_start",
+            "returns_refunds",
+            tool="create_refund",
+            args={"order_id": request.order_id, "item_id": request.item_id},
+        )
+        resolution = self.returns_refunds_agent.run(
+            ReturnsRefundsAgentInput(
+                context=protected_context,
+                task="refund",
+                item_id=request.item_id,
+                reason=request.reason,
+                idempotency_key=request.idempotency_key,
+            )
+        )
+        self._trace(
+            request,
+            "policy_decision",
+            "returns_refunds",
+            tool="create_refund",
+            args={
+                "allowed": resolution.policy_decision.allowed,
+                "rule_id": resolution.policy_decision.rule_id,
+            },
+        )
+        facts = {
+            "order_id": request.order_id,
+            "requested_resolution": "cash refund",
+            "allowed": resolution.policy_decision.allowed,
+            "amount": (
+                str(resolution.amount.amount) if resolution.amount is not None else None
+            ),
+            "reason": resolution.policy_decision.reason,
+            "alternative": resolution.policy_decision.alternative,
+            "action_committed": resolution.action is not None,
+        }
+        model_request = ModelRequest(
+            provider=self.settings.model_provider,
+            model_id=self.settings.model_id,
+            messages=[
+                ModelMessage(
+                    role="system",
+                    content=(
+                        "Write one concise customer-service reply using only the supplied "
+                        "policy facts. State an action only when action_committed is true."
+                    ),
+                ),
+                ModelMessage(
+                    role="user",
+                    content=f"Customer request: {request.context.customer_message}\nFacts: {facts}",
+                ),
+            ],
+            template_version="m2-refund-v1",
+            tool_schema_version="m2-v1",
+        )
+        response = self.replay.invoke(model_request, self.live_call)
+        self._trace(
+            request,
+            "model_call",
+            "supervisor",
+            input_tokens=response.usage.input_tokens,
+            output_tokens=response.usage.output_tokens,
+            cost_usd=Decimal(str(response.usage.cost_usd)),
+        )
+        self._trace(request, "agent_end", "supervisor")
+        return RefundSupervisorOutput(
+            plan=plan,
+            final_reply=response.text,
+            resolution=resolution,
         )

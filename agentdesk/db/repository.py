@@ -2,15 +2,22 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import date, datetime
 from decimal import Decimal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
-from agentdesk.schemas.common import Money, VerifiedIdentity
+from agentdesk.schemas.common import Money, PolicyDecision, VerifiedIdentity
 from agentdesk.schemas.tools import (
+    AuditRecord,
+    CancelOrderResult,
+    CreateRefundResult,
+    CreateReplacementResult,
+    CreateReturnLabelResult,
     GetOrderResult,
     GetTrackingResult,
+    IssueStoreCreditResult,
     ToolError,
     VerifyIdentityResult,
 )
@@ -134,4 +141,240 @@ class Repository:
                 if row["estimated_delivery"]
                 else None
             ),
+        )
+
+    def _audit_record(self, row: sqlite3.Row) -> AuditRecord:
+        return AuditRecord(
+            audit_id=row["id"],
+            idempotency_key=row["idempotency_key"],
+            operation=row["operation"],
+            outcome=row["outcome"],
+            policy_decision_id=row["policy_decision_id"],
+            created_at=datetime.fromisoformat(row["created_at"]),
+        )
+
+    def _existing_audit(self, idempotency_key: UUID) -> sqlite3.Row | None:
+        return self.connection.execute(
+            "SELECT * FROM audit_log WHERE idempotency_key = ?",
+            (str(idempotency_key),),
+        ).fetchone()
+
+    def _insert_audit(
+        self,
+        *,
+        order_id: str,
+        idempotency_key: UUID,
+        operation: str,
+        outcome: str,
+        decision: PolicyDecision,
+        details: dict[str, object],
+    ) -> AuditRecord:
+        audit_id = uuid4()
+        created_at = datetime.now().astimezone()
+        self.connection.execute(
+            """
+            INSERT INTO audit_log (
+                id, order_id, idempotency_key, operation, outcome,
+                policy_decision_id, details_json, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                str(audit_id),
+                order_id,
+                str(idempotency_key),
+                operation,
+                outcome,
+                str(decision.decision_id),
+                json.dumps(details, sort_keys=True),
+                created_at.isoformat(),
+            ),
+        )
+        return AuditRecord(
+            audit_id=audit_id,
+            idempotency_key=idempotency_key,
+            operation=operation,
+            outcome=outcome,
+            policy_decision_id=decision.decision_id,
+            created_at=created_at,
+        )
+
+    def cancel_order(
+        self,
+        identity: VerifiedIdentity,
+        order_id: str,
+        idempotency_key: UUID,
+        decision: PolicyDecision,
+    ) -> CancelOrderResult:
+        if not self._identity_matches(identity, order_id):
+            raise PermissionError("Identity verification is required for this order")
+        existing = self._existing_audit(idempotency_key)
+        if existing:
+            return CancelOrderResult(
+                cancelled=existing["outcome"] == "committed",
+                decision=decision,
+                audit=self._audit_record(existing),
+            )
+        with self.connection:
+            if decision.allowed:
+                self.connection.execute(
+                    "UPDATE orders SET status = 'cancelled' WHERE id = ?",
+                    (order_id,),
+                )
+            audit = self._insert_audit(
+                order_id=order_id,
+                idempotency_key=idempotency_key,
+                operation="cancel",
+                outcome="committed" if decision.allowed else "denied",
+                decision=decision,
+                details={"cancelled": decision.allowed},
+            )
+        return CancelOrderResult(
+            cancelled=decision.allowed,
+            decision=decision,
+            audit=audit,
+            error=(
+                None
+                if decision.allowed
+                else ToolError(code="policy_denied", message=decision.reason)
+            ),
+        )
+
+    def create_refund(
+        self,
+        identity: VerifiedIdentity,
+        order_id: str,
+        item_id: str,
+        amount: Money,
+        idempotency_key: UUID,
+        decision: PolicyDecision,
+        *,
+        kind: str = "cash",
+    ) -> CreateRefundResult | IssueStoreCreditResult:
+        if not self._identity_matches(identity, order_id):
+            raise PermissionError("Identity verification is required for this order")
+        existing = self._existing_audit(idempotency_key)
+        if existing:
+            details = json.loads(existing["details_json"])
+            result_type = (
+                IssueStoreCreditResult if kind == "store_credit" else CreateRefundResult
+            )
+            identifier_field = (
+                {"credit_id": details.get("refund_id")}
+                if kind == "store_credit"
+                else {"refund_id": details.get("refund_id")}
+            )
+            return result_type(
+                **identifier_field,
+                amount=amount if existing["outcome"] == "committed" else None,
+                decision=decision,
+                audit=self._audit_record(existing),
+                error=(
+                    None
+                    if existing["outcome"] == "committed"
+                    else ToolError(code="policy_denied", message=decision.reason)
+                ),
+            )
+
+        refund_id = uuid4() if decision.allowed else None
+        operation = "store_credit" if kind == "store_credit" else "refund"
+        with self.connection:
+            if refund_id:
+                self.connection.execute(
+                    """
+                    INSERT INTO refunds (
+                        id, order_id, item_id, amount_cents, kind, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        str(refund_id),
+                        order_id,
+                        item_id,
+                        int(amount.amount * 100),
+                        kind,
+                        datetime.now().astimezone().isoformat(),
+                    ),
+                )
+            audit = self._insert_audit(
+                order_id=order_id,
+                idempotency_key=idempotency_key,
+                operation=operation,
+                outcome="committed" if decision.allowed else "denied",
+                decision=decision,
+                details={
+                    "refund_id": str(refund_id) if refund_id else None,
+                    "amount": str(amount.amount),
+                    "kind": kind,
+                },
+            )
+
+        error = (
+            None
+            if decision.allowed
+            else ToolError(code="policy_denied", message=decision.reason)
+        )
+        if kind == "store_credit":
+            return IssueStoreCreditResult(
+                credit_id=refund_id,
+                amount=amount if decision.allowed else None,
+                decision=decision,
+                audit=audit,
+                error=error,
+            )
+        return CreateRefundResult(
+            refund_id=refund_id,
+            amount=amount if decision.allowed else None,
+            decision=decision,
+            audit=audit,
+            error=error,
+        )
+
+    def record_resolution(
+        self,
+        identity: VerifiedIdentity,
+        order_id: str,
+        item_id: str,
+        idempotency_key: UUID,
+        decision: PolicyDecision,
+        operation: str,
+    ) -> CreateReturnLabelResult | CreateReplacementResult:
+        if not self._identity_matches(identity, order_id):
+            raise PermissionError("Identity verification is required for this order")
+        existing = self._existing_audit(idempotency_key)
+        if existing:
+            details = json.loads(existing["details_json"])
+            audit = self._audit_record(existing)
+        else:
+            reference_id = uuid4() if decision.allowed else None
+            details = {"reference_id": str(reference_id) if reference_id else None}
+            with self.connection:
+                audit = self._insert_audit(
+                    order_id=order_id,
+                    idempotency_key=idempotency_key,
+                    operation=operation,
+                    outcome="committed" if decision.allowed else "denied",
+                    decision=decision,
+                    details=details,
+                )
+        error = (
+            None
+            if decision.allowed
+            else ToolError(code="policy_denied", message=decision.reason)
+        )
+        if operation == "return_label":
+            label_id = details.get("reference_id")
+            return CreateReturnLabelResult(
+                label_id=label_id,
+                label_reference=f"RET-{str(label_id)[-8:]}" if label_id else None,
+                decision=decision,
+                audit=audit,
+                error=error,
+            )
+        replacement_id = details.get("reference_id")
+        return CreateReplacementResult(
+            replacement_order_id=(
+                f"RPL-{str(replacement_id)[-8:]}" if replacement_id else None
+            ),
+            decision=decision,
+            audit=audit,
+            error=error,
         )

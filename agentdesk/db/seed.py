@@ -68,7 +68,7 @@ def seed_database(path: Path) -> dict[str, object]:
                 total_cents = (79 + (order_number % 7) * 10) * 100
             ordered_at = base - timedelta(days=order_number % 12)
             delivered_at = (
-                base + timedelta(days=2)
+                datetime(2026, 10, 20, 12, 0, tzinfo=UTC)
                 if status in {"delivered", "delivered-damaged"}
                 else None
             )

@@ -1,0 +1,26 @@
+{
+  "request": {
+    "messages": [
+      {
+        "content": "Write one concise customer-service reply using only the supplied policy facts. State an action only when action_committed is true.",
+        "role": "system"
+      },
+      {
+        "content": "Customer request: My $350 blender arrived damaged. Please refund it.\nFacts: {'order_id': 'ORD-0004', 'requested_resolution': 'cash refund', 'allowed': False, 'amount': None, 'reason': 'Cash refunds above $200 are not automatically approved.', 'alternative': 'Offer store credit.', 'action_committed': False}",
+        "role": "user"
+      }
+    ],
+    "model_id": "gpt-4o",
+    "provider": "openai",
+    "template_version": "m2-refund-v1",
+    "tool_schema_version": "m2-v1"
+  },
+  "response": {
+    "text": "We cannot automatically approve cash refunds for amounts above $200. However, we can offer you store credit for the value of the damaged blender.",
+    "usage": {
+      "cost_usd": 0.0,
+      "input_tokens": 122,
+      "output_tokens": 29
+    }
+  }
+}

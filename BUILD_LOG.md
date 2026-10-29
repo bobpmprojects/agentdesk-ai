@@ -87,3 +87,50 @@
 - M1 intent detection is deliberately limited to the order-status/tracking vertical
   slice; multi-intent planning arrives in M3.
 - Provider-reported token counts are captured, but provider pricing is not inferred.
+
+## M2 — Returns/refunds and guarded writes
+
+### Built
+
+- Plain-Python Policy Engine enforcing identity, $200 refund cap, 30-day delivery
+  window, and cancel-before-shipment.
+- Typed cancellation, return assessment/label, refund, store-credit, and replacement
+  tools.
+- Atomic SQLite business writes plus `audit_log` entries, with unique idempotency keys
+  returning the original audit outcome on retries.
+- Returns & Refunds specialist and Supervisor refund plan with safe denied alternatives.
+- Scripted M2 scenario for a $149 committed refund and a denied $350 cash refund with
+  store-credit offer.
+
+### Files changed
+
+- Policy/contracts: `agentdesk/policy/`, `agentdesk/schemas/{common,agents,tools}.py`
+- Agents/tools: `agentdesk/agents/{orders,returns_refunds,supervisor}.py`,
+  `agentdesk/tools/{orders,returns_refunds}.py`
+- Persistence/data: `agentdesk/db/{repository,seed}.py`
+- Demo/tests: `agentdesk/scenarios.py`,
+  `tests/integration/test_m2_guarded_writes.py`,
+  `tests/unit/test_m2_policy_engine.py`
+- Replay: `fixtures/replay/`
+
+### Verification
+
+- `uv run pytest`: **15 passed**
+- M2 OpenAI RECORD then REPLAY: **both final outputs identical**
+- Streamlit headless health check: **passed**
+
+### Acceptance criteria met
+
+- **AC4:** processing cancellation commits and audits; shipped cancellation is denied
+  with the return alternative.
+- **AC5:** $200 is cash-refund eligible at the 30-day boundary; $200.01 is denied with
+  store credit offered.
+- **AC6:** repeating one refund idempotency key creates one refund and resolves to one
+  audit outcome.
+
+### Known gaps or shortcuts
+
+- Return labels and replacements are local mock references represented by committed
+  audit effects; there is no external carrier or fulfillment integration.
+- The provider may phrase fulfillment timing conversationally in M2; unsupported-promise
+  enforcement is added by the M4 verifier.

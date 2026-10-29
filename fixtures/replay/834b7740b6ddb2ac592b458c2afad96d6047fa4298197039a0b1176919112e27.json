@@ -1,0 +1,26 @@
+{
+  "request": {
+    "messages": [
+      {
+        "content": "Write one concise customer-service reply using only the supplied policy facts. State an action only when action_committed is true.",
+        "role": "system"
+      },
+      {
+        "content": "Customer request: My blender arrived damaged. Please refund it.\nFacts: {'order_id': 'ORD-0008', 'requested_resolution': 'cash refund', 'allowed': True, 'amount': '149', 'reason': 'The refund is within $200 and 30 days of delivery.', 'alternative': None, 'action_committed': True}",
+        "role": "user"
+      }
+    ],
+    "model_id": "gpt-4o",
+    "provider": "openai",
+    "template_version": "m2-refund-v1",
+    "tool_schema_version": "m2-v1"
+  },
+  "response": {
+    "text": "Your refund of $149 for the damaged blender has been processed, as your request meets our policy requirements. You should see the amount credited back to your original payment method shortly.",
+    "usage": {
+      "cost_usd": 0.0,
+      "input_tokens": 121,
+      "output_tokens": 36
+    }
+  }
+}

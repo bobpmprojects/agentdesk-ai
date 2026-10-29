@@ -2,13 +2,15 @@
 
 from datetime import date, datetime
 from typing import Literal
+from uuid import UUID
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 
 from agentdesk.schemas.common import (
     ContractModel,
     Money,
     OrderStatus,
+    PolicyDecision,
     VerifiedIdentity,
 )
 
@@ -24,6 +26,15 @@ class ToolError(ContractModel):
     ]
     message: str
     retryable: bool = False
+
+
+class AuditRecord(ContractModel):
+    audit_id: UUID
+    idempotency_key: UUID
+    operation: str
+    outcome: Literal["committed", "denied", "duplicate", "failed"]
+    policy_decision_id: UUID | None = None
+    created_at: datetime
 
 
 class VerifyIdentityArgs(ContractModel):
@@ -61,4 +72,92 @@ class GetTrackingResult(ContractModel):
     carrier: str | None = None
     tracking_number_redacted: str | None = None
     estimated_delivery: date | None = None
+    error: ToolError | None = None
+
+
+class CancelOrderArgs(ContractModel):
+    identity: VerifiedIdentity
+    order_id: str
+    idempotency_key: UUID
+
+
+class CancelOrderResult(ContractModel):
+    cancelled: bool
+    decision: PolicyDecision
+    audit: AuditRecord
+    error: ToolError | None = None
+
+
+class AssessReturnArgs(ContractModel):
+    identity: VerifiedIdentity
+    order_id: str
+    item_id: str
+    reason: Literal["damaged", "wrong_item", "other"]
+
+
+class AssessReturnResult(ContractModel):
+    eligible: bool
+    days_since_delivery: int | None = Field(default=None, ge=0)
+    refundable_amount: Money | None = None
+    decision: PolicyDecision
+    error: ToolError | None = None
+
+
+class CreateReturnLabelArgs(ContractModel):
+    identity: VerifiedIdentity
+    order_id: str
+    item_id: str
+    idempotency_key: UUID
+
+
+class CreateReturnLabelResult(ContractModel):
+    label_id: UUID | None = None
+    label_reference: str | None = None
+    decision: PolicyDecision
+    audit: AuditRecord
+    error: ToolError | None = None
+
+
+class CreateRefundArgs(ContractModel):
+    identity: VerifiedIdentity
+    order_id: str
+    item_id: str
+    amount: Money
+    idempotency_key: UUID
+
+
+class CreateRefundResult(ContractModel):
+    refund_id: UUID | None = None
+    amount: Money | None = None
+    decision: PolicyDecision
+    audit: AuditRecord
+    error: ToolError | None = None
+
+
+class IssueStoreCreditArgs(ContractModel):
+    identity: VerifiedIdentity
+    order_id: str
+    amount: Money
+    idempotency_key: UUID
+
+
+class IssueStoreCreditResult(ContractModel):
+    credit_id: UUID | None = None
+    amount: Money | None = None
+    decision: PolicyDecision
+    audit: AuditRecord
+    error: ToolError | None = None
+
+
+class CreateReplacementArgs(ContractModel):
+    identity: VerifiedIdentity
+    order_id: str
+    item_id: str
+    idempotency_key: UUID
+
+
+class CreateReplacementResult(ContractModel):
+    replacement_order_id: str | None = None
+    decision: PolicyDecision
+    audit: AuditRecord
     error: ToolError | None = None

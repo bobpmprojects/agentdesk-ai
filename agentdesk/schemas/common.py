@@ -54,6 +54,13 @@ class AgentContext(ContractModel):
     active_order_id: str | None = None
 
 
+class ActionClaim(ContractModel):
+    action_type: str
+    audit_id: UUID
+    order_id: str | None = None
+    description: str
+
+
 class PolicyCitation(ContractModel):
     document: str
     section_id: str

@@ -2,15 +2,18 @@
 
 from datetime import date
 from typing import Literal
+from uuid import UUID
 
 from pydantic import Field, SecretStr
 
 from agentdesk.schemas.common import (
+    ActionClaim,
     AgentContext,
     ContractModel,
     Intent,
     Money,
     OrderStatus,
+    PolicyDecision,
     VerifiedIdentity,
 )
 
@@ -51,7 +54,8 @@ class IdentityAgentOutput(ContractModel):
 
 class OrdersAgentInput(ContractModel):
     context: AgentContext
-    task: Literal["status", "tracking"]
+    task: Literal["status", "tracking", "cancel"]
+    idempotency_key: UUID | None = None
 
 
 class OrdersAgentOutput(ContractModel):
@@ -61,3 +65,41 @@ class OrdersAgentOutput(ContractModel):
     carrier: str | None = None
     tracking_number_redacted: str | None = None
     estimated_delivery: date | None = None
+    policy_decision: PolicyDecision | None = None
+    action: ActionClaim | None = None
+
+
+class ReturnsRefundsAgentInput(ContractModel):
+    context: AgentContext
+    task: Literal[
+        "assess_return", "create_return_label", "refund", "store_credit", "replace"
+    ]
+    item_id: str
+    reason: Literal["damaged", "wrong_item", "other"]
+    idempotency_key: UUID | None = None
+
+
+class ReturnsRefundsAgentOutput(ContractModel):
+    eligible: bool
+    resolution: Literal[
+        "return_label", "refund", "store_credit", "replacement", "denied"
+    ]
+    amount: Money | None = None
+    policy_decision: PolicyDecision
+    action: ActionClaim | None = None
+    explanation: str
+
+
+class RefundSupervisorInput(ContractModel):
+    context: AgentContext
+    order_id: str
+    email: SecretStr
+    item_id: str
+    reason: Literal["damaged", "wrong_item", "other"] = "damaged"
+    idempotency_key: UUID
+
+
+class RefundSupervisorOutput(ContractModel):
+    plan: list[PlanStep] = Field(min_length=1)
+    final_reply: str
+    resolution: ReturnsRefundsAgentOutput | None = None
