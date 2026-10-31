@@ -203,7 +203,7 @@ Memory is a small saved state: verified order, pending choice, prior actions. It
 
 CI runs lint, the 27 tests, and the 5 replayed conversations. The build fails if a policy violation appears. Passing run: https://github.com/bobpmprojects/agentdesk-ai/actions/runs/40976292028
 
-The five conversations are order status, the $350 refusal, a refund that succeeds while an address change fails, a cited policy answer, and the store-credit follow-up.
+The five conversations are order status, the $350 refusal, a refund that succeeds while an address change fails, a cited policy answer, and the store-credit follow-up. The full 27-test list is in Appendix E. Do not put that list on this slide.
 
 ---
 
@@ -362,3 +362,82 @@ Seed data: 50 customers, 150 orders. Default demo: order `ORD-0002`, email `cust
 - Labels, replacements, and payments are local mock records.
 - `.env` and API keys are not in the repo.
 - CI run `40976292028` passed on commit `09c5562`. Later doc commits do not change that code result.
+
+---
+
+## Appendix E — tests that passed
+
+Do not put all 27 names on one slide. Slide 9 keeps the scorecard. Use this list when someone asks what was actually tested.
+
+Local commands, no API key:
+
+```bash
+uv run pytest
+MODEL_PROVIDER=openai LLM_MODE=replay uv run python -m agentdesk.evals
+```
+
+Result: **27 / 27** pytest tests passed. The replay evaluation passed **5 / 5** conversations, with **0** policy violations, **100%** grounded actions, **100%** valid citations, and **0** unnecessary handoffs.
+
+### Foundation — `tests/unit/test_m0_foundation.py`
+
+- The seed data has 50 customers and 150 orders in mixed states.
+- Six policy documents have stable section IDs.
+- A recorded model call replays the exact same response.
+- Replay never falls through to a live model when a fixture is missing.
+- Switching the provider selects the configured model.
+- Traces redact personal information.
+
+### Order status — `tests/integration/test_m1_order_status.py`
+
+- A wrong email stops the flow before any order lookup.
+- A verified shipped order returns the database status and a redacted trace.
+
+### Policy rules — `tests/unit/test_m2_policy_engine.py`
+
+- A $200 refund is allowed.
+- A refund above $200 is denied and store credit is offered.
+- Identity is required before any other rule runs.
+
+### Guarded writes — `tests/integration/test_m2_guarded_writes.py`
+
+- The same refund twice does not create a second refund.
+- Nothing is written without identity verification.
+- An over-cap refund is denied and store credit is offered.
+- Cancellation is allowed only before shipment.
+
+### Multi-intent — `tests/integration/test_m3_multi_intent.py`
+
+- A replacement changes the address first, and a second address change is denied.
+- A refund still completes when the address change on a delivered order is denied.
+- A verified customer can update contact preferences.
+
+### Policy and verifier — `tests/integration/test_m4_policy_verifier.py`
+
+- A covered question returns a real section citation. An uncovered one says it is not in the policy.
+- A fabricated refund and a fabricated citation are blocked before the model runs.
+- The supervisor verifies both a grounded answer and an uncovered answer.
+- A failed tone check is regenerated once, then replaced with the safe fallback.
+
+### Memory — `tests/integration/test_m5_conversation_state.py`
+
+- "Actually, make it store credit" reloads the case, writes no replacement, and records only store credit.
+
+### Graph — `tests/unit/test_langgraph_architecture.py`
+
+- The compiled graph contains every agent node.
+- Order status runs through supervisor, identity, orders, model reply, and finalize.
+- Shared graph state is a Pydantic model.
+
+### Eval gate — `tests/evals/test_replay_evals.py`
+
+- The replay suite reports zero policy violations.
+
+### Five replayed conversations — `fixtures/eval_cases/core.json`
+
+| ID | What it checks |
+|---|---|
+| `m1-order-status` | Verified order lookup returns `ORD-0002` |
+| `m2-refund-boundaries` | The $350 cash refund is refused and store credit is offered |
+| `m3-multi-intent` | The refund succeeds and the address change is denied |
+| `m4-policy-grounding` | The refund-limit answer cites `returns-and-refunds.md#refund-limit` |
+| `m5-follow-up` | A later message changes the resolution to store credit |
