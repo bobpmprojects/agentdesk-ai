@@ -563,3 +563,81 @@ The line to say: "I built the controls and the audit trail that make a complianc
 1. **Retention and delete-request flow.** Smallest code change, and the first question a privacy reviewer asks.
 2. **Region field plus region-match policy rule.** Turns residency from a design into a test.
 3. **Policy version on every audit row.** Makes "which rule was in force on that day" answerable.
+
+---
+
+## Appendix G — talk track: one point, one tradeoff, one trust control per slide
+
+Say these out loud. Do not put them on the slide. Each slide gets three lines: **Point** (what to remember), **Tradeoff** (what I gave up and why), **Trust** (the identity, privacy, governance, or compliance control in that use case). Trust lines marked *(designed)* are not in code; say so if you use them.
+
+### Slide 1 — Title
+- **Point:** Separate judgment from permission. The model decides what the customer wants; code decides what is allowed.
+- **Tradeoff:** Less "magic." The agent cannot improvise a goodwill refund, because flexibility and provable safety pull in opposite directions, and I chose safety.
+- **Trust:** Governance by design: no model output can move money or change an account without passing the policy engine.
+
+### Slide 2 — The request that can go wrong (broken blender, refund + new address)
+- **Point:** One customer sentence holds four product risks: wrong person, wrong amount, duplicate, invented policy.
+- **Tradeoff:** I designed for the failure cases first, not the happy path. Slower to demo, but each risk became a test.
+- **Trust:** Each risk maps to a control: identity check (wrong person), `refund-cap-200` (amount), idempotency key (duplicate), citation check (invented policy).
+
+### Slide 3 — The product decision (three jobs, three owners)
+- **Point:** Agents decide what, the Python engine decides if, the verifier decides what can be said.
+- **Tradeoff:** More components to build and maintain than one agent with tools, in exchange for each owner being testable alone.
+- **Trust:** Separation of duties, the same principle as maker-checker in finance: the actor and the approver are different components.
+
+### Slide 4 — Order status (`ORD-0002`, "Where is my order?")
+- **Point:** Facts come from the database; the model only phrases them.
+- **Tradeoff:** Replay mode makes the demo deterministic and free, but it is not proof of live-model quality on new wording.
+- **Trust:** Privacy: identity must match before the lookup, the tracking number is masked to `••••0002`, and the model never sees the email or street address.
+
+### Slide 5 — You can watch it run (live graph)
+- **Point:** The graph shown is exported from the running system, not drawn for a slide.
+- **Tradeoff:** An explicit graph is more code than letting a model choose its next step, but every path is visible and testable.
+- **Trust:** Auditability: identity runs before any order data is read, and the trace for every step is stored with PII redacted.
+
+### Slide 6 — Five agents, not one
+- **Point:** Narrow agents, each owning one kind of change, hand typed results back. No agent-to-agent chatter.
+- **Tradeoff:** More handoffs and routing logic, accepted because a single agent with every tool can refund while answering a policy question.
+- **Trust:** Least privilege: each agent gets only the tools it needs. The Policy agent has no write tools at all.
+
+### Slide 7 — The moment it says no ($149 approved vs $350 refused, `ORD-0008` / `ORD-0004`)
+- **Point:** Same agent, same tools; a Python rule makes the difference, and the refusal comes with an alternative (store credit).
+- **Tradeoff:** A hard $200 cap refuses some reasonable customers. I took that cost because a fixed rule can be tested and a model's judgment cannot.
+- **Trust:** Governance: every decision returns a rule ID (`refund-cap-200`) and a deterministic decision ID, and the audit row records outcome `denied`. Asking twice still creates one refund.
+
+### Slide 8 — It remembers the case (replacement → store credit)
+- **Point:** Memory is small, saved state: verified order, pending choice, prior actions. Nothing is written on turn 1.
+- **Tradeoff:** Storing a structured case instead of the full transcript loses conversational nuance, but it keeps state small, checkable, and free of PII.
+- **Trust:** Privacy by data minimization: memory keeps IDs, not the raw email or street address, and the follow-up checks policy again before writing. *(designed)* A retention window would purge old state.
+
+### Slide 9 — Proof (27/27 tests, 5/5 conversations, 0 violations)
+- **Point:** "Works" is defined by a scorecard, and the build fails on a single policy violation.
+- **Tradeoff:** Five golden conversations is a narrow bar. I chose depth on high-risk paths over breadth on wording.
+- **Trust:** Compliance evidence: CI is a control, not a report. It runs without an API key, so anyone can reproduce the result.
+
+### Slide 10 — Three tradeoffs (refund + address change on a delivered order)
+- **Point:** Partial success is a product decision: the legal step (refund) completes and the illegal step (address change after shipment) is denied, with the reason.
+- **Tradeoff:** Keyword routing and BM25 keyword search over six docs instead of a vector database: exact citations and stable replay, at the cost of open-ended phrasing.
+- **Trust:** Governance: each step is decided and audited separately (`refund-within-cap-and-window` allowed, `address-before-shipment` denied), so one illegal part never blocks or contaminates the legal part.
+
+### Slide 11 — What I would not claim (covered vs uncovered policy question)
+- **Point:** An honest "that is not in the policy" is a feature, not a failure.
+- **Tradeoff:** Refusing to answer from general knowledge frustrates some customers; inventing store policy creates liability.
+- **Trust:** Compliance honesty: cited answers (`returns-and-refunds.md#refund-limit`), fabricated citations blocked before the model runs, and no claim of GDPR, SOC 2, or residency. *(designed)* Region pinning is the named next step.
+
+### Slide 12 — Close
+- **Point:** It can refuse, remember, and prove what it did.
+- **Tradeoff:** The first upgrade is model-based planning in the Supervisor, kept behind the same policy engine, trading some determinism for coverage of open-ended wording.
+- **Trust:** The policy engine stays the single place where permission is decided, so a smarter planner does not weaken the controls.
+
+### Use-case cheat sheet
+
+| Use case | Point | Tradeoff | Trust control |
+|---|---|---|---|
+| Order status `ORD-0002` | DB facts, model phrasing | Replay ≠ live quality | Identity first, masked tracking, no PII to model |
+| $149 refund `ORD-0008` | Allowed inside cap and window | Strict rule over flexibility | Idempotency key + audit row |
+| $350 refund `ORD-0004` | Refuse with an alternative | Some fair requests refused | Rule ID `refund-cap-200`, outcome `denied` |
+| Refund + address change | Partial success | More step logic | Each step audited separately |
+| Covered policy question | Answer with a citation | Keyword search over vectors | Citation must exist |
+| Uncovered policy question | Say "not in the policy" | Less helpful, less liability | Verifier blocks invented policy |
+| Replacement → store credit | Memory as saved state | Lose transcript nuance | No PII in memory, policy rechecked |
