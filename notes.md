@@ -4,7 +4,7 @@ This file is the only source for a hiring-manager deck. Copy the on-slide text. 
 
 **Repo:** https://github.com/bobpmprojects/agentdesk-ai  
 **Audience:** a hiring manager for a product or applied-AI role  
-**Length:** 12 slides. One idea per slide. Speaker notes stay off the slide.
+**Length:** 12 slides, plus one backup slide (B1) shown only if asked. One idea per slide. Speaker notes stay off the slide.
 
 Product: AgentDesk. Fictional store: Northwind Goods. All customers and orders are synthetic.
 
@@ -19,6 +19,7 @@ Product: AgentDesk. Fictional store: Northwind Goods. All customers and orders a
 - Never say this is in production, handles real customers, or plans with a model.
 - Never say the verifier checks every reply. It checks policy replies.
 - The impressive claim is judgment under constraint: the agent can finish a request, refuse an illegal one, remember a follow-up, and prove it.
+- Never say AgentDesk is GDPR, CCPA, SOC 2, or HIPAA compliant, or that it enforces data residency. Appendix F separates what is built from what is designed.
 
 ---
 
@@ -267,6 +268,26 @@ MODEL_PROVIDER=openai LLM_MODE=replay uv run streamlit run agentdesk/ui/app.py
 
 ---
 
+## Backup slide B1 — Trust is a node, not a promise
+
+Show only if the hiring manager asks about privacy, security, or compliance. Source: Appendix F.
+
+**On slide**
+
+| Control | Built today | Where |
+|---|---|---|
+| Identity | Order ID + email must match before any read or write | Identity agent |
+| Privacy | Email is a secret type. Traces redact PII. The model never sees an email or street address. | Tools, tracing, model reply |
+| Governance | Rules are versioned code. Every write has an audit row and a policy decision ID. | Policy engine, audit log |
+| Compliance | CI fails on one policy violation | GitHub Actions |
+| Data residency | Designed, not built | Next version |
+
+**Speaker note**
+
+Each control lives in one node, so I can test it and point to it. The model writes sentences; it never holds customer PII and never approves an action. I would not call this compliant with any regulation. What I can show is the evidence a compliance review asks for: who was verified, which rule decided, what was written, and a build that fails when a rule is broken. Residency is the honest gap; Appendix F has the design.
+
+---
+
 ## Screenshot files
 
 Put these on slides 4 and 5. They were captured from the running Streamlit app in replay mode.
@@ -362,6 +383,7 @@ Seed data: 50 customers, 150 orders. Default demo: order `ORD-0002`, email `cust
 - Labels, replacements, and payments are local mock records.
 - `.env` and API keys are not in the repo.
 - CI run `40976292028` passed on commit `09c5562`. Later doc commits do not change that code result.
+- No compliance certification or legal review exists. Data residency, consent, retention, deletion requests, and role-based access are designs, not code. See Appendix F.
 
 ---
 
@@ -441,3 +463,103 @@ Result: **27 / 27** pytest tests passed. The replay evaluation passed **5 / 5** 
 | `m3-multi-intent` | The refund succeeds and the address change is denied |
 | `m4-policy-grounding` | The refund-limit answer cites `returns-and-refunds.md#refund-limit` |
 | `m5-follow-up` | A later message changes the resolution to store credit |
+
+---
+
+## Appendix F — identity, privacy, residency, governance, compliance
+
+Use this when someone asks "how would this pass a security or compliance review?" Every row says whether it is **built** (in code, with a test or file to show) or **designed** (the next step, not in this version). Do not move a designed row into a built claim.
+
+### The principle
+
+Trust controls are placed in nodes, not in the prompt. A prompt can be argued with. A node either runs or the request stops.
+
+```mermaid
+flowchart LR
+    C[Customer] --> S[Supervisor]
+    S --> I[Identity<br/>verify before read]
+    I --> X[Specialist<br/>Orders / Refunds / Account]
+    X --> E[Policy engine<br/>rule + decision ID]
+    E --> W[Guarded write<br/>idempotency + audit row]
+    W --> M[Model reply<br/>facts only, no PII]
+    M --> V[Verifier<br/>policy replies]
+    V --> Reply[Customer reply]
+    T[Trace collector<br/>redacts PII] -.-> S & I & X & E & W & M & V
+```
+
+### 1. Identity — built
+
+| What | Evidence |
+|---|---|
+| Order ID + email must match before any customer, order, shipment, refund, or address data is read or changed | `agentdesk/agents/identity.py`, `db/repository.py` `verify_identity`, policy `identity-and-privacy.md#order-verification` |
+| A wrong email stops the flow before any order lookup | `tests/integration/test_m1_order_status.py` |
+| Nothing is written without verification | `tests/integration/test_m2_guarded_writes.py` |
+| Identity is the first rule the policy engine checks | `tests/unit/test_m2_policy_engine.py` |
+| After verification, agents pass a `VerifiedIdentity` (customer ID, order ID, verification ID, time), not the email | `schemas/tools.py` |
+
+Designed, not built: step-up verification (one-time code) before money moves above a threshold; rate-limiting failed matches to stop order-ID guessing; staff identity and roles for a human-agent console.
+
+### 2. Privacy — built
+
+| What | Evidence |
+|---|---|
+| Email is a Pydantic `SecretStr` in every agent and tool schema, so it does not print in logs or reprs | `schemas/agents.py`, `schemas/tools.py` |
+| Traces redact email, street lines, postal code, tracking number, and API keys | `runtime/tracing.py`; test "Traces redact personal information" in `test_m0_foundation.py` |
+| Tracking numbers are masked to the last four digits before they reach the reply | `db/repository.py` (`••••0002`) |
+| The model receives only the decided facts. The committed model prompts contain no email or street address | `fixtures/replay/` |
+| Conversation memory keeps verified IDs, intents, and prior actions, not the raw email or street address | `runtime/conversation.py`, `ConversationState` |
+| No API keys in the repo; keys are `SecretStr` settings from `.env` | `config.py`, `.gitignore` |
+
+Designed, not built: retention window and automatic purge of `conversation_state`; a customer data-export and delete request flow; consent and purpose records; PII detection on free text the customer types (today redaction is by field name, not content).
+
+### 3. Data residency — designed, not built
+
+Today everything runs locally: SQLite on the machine, and in RECORD mode one model provider chosen by `MODEL_PROVIDER`. There is no region pin.
+
+The design, if a customer said "EU data stays in the EU":
+
+1. A `region` field on the tenant and conversation, set at intake.
+2. The Supervisor picks the database and model endpoint for that region. The specialists do not change.
+3. The policy engine adds one rule: refuse a call whose endpoint region does not match the data region.
+4. The audit row records the region used, so residency is provable after the fact.
+
+Why it fits this architecture: model choice is already behind one adapter (`agents/langchain_adapter.py`), and every write already goes through one engine and one audit table. Residency is a routing rule plus one more check, not a rewrite.
+
+### 4. Governance — built
+
+| What | Evidence |
+|---|---|
+| Business rules are plain Python, versioned in git and reviewed like code. The model cannot change them | `agentdesk/policy/engine.py` |
+| Every decision returns a rule ID, reason, and deterministic decision ID (same input, same ID) | `PolicyDecision` in `schemas/common.py` |
+| Every write has an idempotency key and an `audit_log` row: operation, outcome (`committed`, `denied`, `duplicate`, `failed`), policy decision ID, time | `db/schema.sql` |
+| Policy answers must cite a real section, or say the answer is not in the policy | `tests/integration/test_m4_policy_verifier.py` |
+| Agents have narrow tools. A policy question cannot trigger a refund | Slide 6, `agents/` |
+| Model replies are recorded and committed, so behavior can be reviewed and replayed | `fixtures/replay/` |
+
+Designed, not built: a policy version stamped on each audit row; approval workflow for rule changes; a human review queue for denied or ambiguous cases; a model and prompt inventory per release.
+
+### 5. Compliance — partial
+
+Built: the evidence a review asks for. Who was verified, which rule decided, what was written, what the model was shown, and a CI build that fails on one policy violation (`.github/workflows/ci.yml`, `tests/evals/test_replay_evals.py`).
+
+Not built, and not claimed: any certification or legal review (GDPR, CCPA, SOC 2, PCI). Payments are mock records, so PCI scope is not exercised.
+
+The line to say: "I built the controls and the audit trail that make a compliance review possible. I would not call a demo compliant."
+
+### Per-node summary
+
+| Node | Identity | Privacy | Residency | Governance | Compliance evidence |
+|---|---|---|---|---|---|
+| Supervisor | Routes to Identity first | Sees request text only | Designed: picks regional endpoint | Keyword routing, no free-form chatter | Trace |
+| Identity | Order ID + email match | Email as `SecretStr` | Designed | Policy-gated | Test |
+| Orders / Refunds / Account | Require `VerifiedIdentity` | Masked tracking | Designed | One kind of change each | Audit row |
+| Policy engine | Rule 1 is identity | No PII in decision | Designed: region-match rule | Rule ID + decision ID | Unit tests |
+| Model reply | Never sees email | Facts only | Designed: regional model | Cannot approve actions | Replay fixtures |
+| Verifier | — | Blocks fabricated claims | — | Citation must exist | Test |
+| Trace collector | — | Redacts by field | — | Every step logged | CI |
+
+### Top three upgrades to make this real, ranked
+
+1. **Retention and delete-request flow.** Smallest code change, and the first question a privacy reviewer asks.
+2. **Region field plus region-match policy rule.** Turns residency from a design into a test.
+3. **Policy version on every audit row.** Makes "which rule was in force on that day" answerable.
