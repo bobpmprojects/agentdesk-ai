@@ -55,7 +55,7 @@ def render_mermaid(diagram: str, *, height: int = 560) -> None:
 
 preview_connection = connect(settings.database_path)
 preview_supervisor = Supervisor(Repository(preview_connection), settings)
-preview_mermaid = preview_supervisor.mermaid(st.session_state.active_node or None)
+preview_mermaid = preview_supervisor.team_mermaid(st.session_state.active_node or None)
 preview_connection.close()
 
 graph_placeholder = st.sidebar.empty()
@@ -63,7 +63,7 @@ graph_placeholder = st.sidebar.empty()
 
 def show_graph(diagram: str) -> None:
     with graph_placeholder.container():
-        st.subheader("Live LangGraph")
+        st.subheader("Live agent team (LangGraph)")
         if st.session_state.active_node:
             st.caption(f"Active node: {st.session_state.active_node}")
         render_mermaid(diagram)
@@ -84,11 +84,18 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.write(message["content"])
         if message.get("plan"):
-            with st.expander("How the agent decided"):
-                st.markdown("**Model decided (planner):**")
-                st.json(message["plan"])
-                st.markdown("**Code decided (identity + policy engine):**")
+            with st.expander("How the agents and code decided"):
+                st.markdown("**Agents proposed** (triage, resolution, policy):")
+                for step in message.get("agent_steps", []):
+                    tool = f" → `{step['tool']}` {step['args']}" if step.get("tool") else ""
+                    st.markdown(f"- **{step['agent']}**: {step['thought']}{tool}")
+                    if step.get("observation"):
+                        st.caption(f"observation: {step['observation']}")
+                st.markdown("**Code decided** (identity gate, policy engine):")
                 st.json(message["steps"])
+                st.markdown("**Code checked** (citations, reply claims, amounts):")
+                for check in message.get("code_checks", []):
+                    st.markdown(f"- {check}")
 
 examples = {f"{case.use_case}": case.turns[0] for case in CASES}
 choice = st.selectbox("Try a recorded use case", list(examples))
@@ -112,7 +119,7 @@ if submitted:
     def on_node(node: str) -> None:
         st.session_state.active_node = node
         if runtime := supervisor_ref.get("runtime"):
-            show_graph(runtime.mermaid(node))
+            show_graph(runtime.team_mermaid(node))
 
     supervisor = Supervisor(
         Repository(connection),
@@ -127,6 +134,8 @@ if submitted:
     supervisor_ref["runtime"] = supervisor
     plan: dict | None = None
     steps: list[dict] = []
+    agent_steps: list[dict] = []
+    code_checks: list[str] = []
     try:
         result = supervisor.handle_message(
             CustomerTurnInput(
@@ -143,6 +152,8 @@ if submitted:
         reply = result.final_reply
         plan = result.plan.model_dump()
         steps = [step.model_dump() for step in result.steps]
+        agent_steps = [step.model_dump() for step in result.agent_steps]
+        code_checks = list(result.code_checks)
     except ReplayMissError:
         reply = (
             "This message has no recorded model reply. Pick a recorded use case, or run "
@@ -151,7 +162,14 @@ if submitted:
     finally:
         connection.close()
     st.session_state.messages.append(
-        {"role": "assistant", "content": reply, "plan": plan, "steps": steps}
+        {
+            "role": "assistant",
+            "content": reply,
+            "plan": plan,
+            "steps": steps,
+            "agent_steps": agent_steps,
+            "code_checks": code_checks,
+        }
     )
     st.session_state.trace = [
         event.model_dump(mode="json") for event in supervisor.trace.events

@@ -16,7 +16,7 @@
     "tool_schema_version": "m6-v1"
   },
   "response": {
-    "text": "{\"intents\": [\"address_change\"], \"reason\": null, \"needs_clarification\": false, \"clarifying_question\": null, \"rationale\": \"Customer wants the shipping address on their order changed to a new one.\"}",
+    "text": "{\"intents\": [\"address_change\"], \"reason\": null, \"needs_clarification\": false, \"clarifying_question\": null, \"rationale\": \"Customer wants the shipping address on their order changed to a new address.\"}",
     "usage": {
       "cost_usd": 0.0,
       "input_tokens": 445,

@@ -64,6 +64,77 @@ Conditional dotted edges are selected from typed graph state:
 - Policy: `supervisor → policy_knowledge → verifier → finalize`
 - Follow-up: `supervisor → memory → returns_refunds → model_reply → finalize`
 
+## Agent team (M7): three agents propose, code decides
+
+`Supervisor.handle_message` runs this compiled LangGraph (`agentdesk/agents/team.py`),
+exported with `draw_mermaid()`:
+
+```mermaid
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	redact(redact)
+	triage_agent(triage_agent)
+	identity_gate(identity_gate)
+	dispatch(dispatch)
+	resolution_agent(resolution_agent)
+	policy_agent(policy_agent)
+	orders_worker(orders_worker)
+	account_worker(account_worker)
+	reply_writer(reply_writer)
+	reply_check(reply_check)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> redact;
+	account_worker --> dispatch;
+	dispatch -.-> account_worker;
+	dispatch -.-> orders_worker;
+	dispatch -.-> policy_agent;
+	dispatch -.-> reply_writer;
+	dispatch -.-> resolution_agent;
+	identity_gate --> dispatch;
+	orders_worker --> dispatch;
+	policy_agent --> dispatch;
+	redact --> triage_agent;
+	reply_writer --> reply_check;
+	resolution_agent --> dispatch;
+	triage_agent --> identity_gate;
+	reply_check --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
+```
+
+### Who decides what
+
+| Decision | Owner | How |
+|---|---|---|
+| Which requests a message contains, in order | **triage_agent** (LLM) | Typed plan of intents; cannot name amounts, orders or approvals |
+| Which remedy fits, what to offer when a request is denied | **resolution_agent** (LLM, tool loop) | Read-only tools bound to the verified order: `get_order_facts`, `check_option` (policy dry run); max 4 tool calls |
+| What to search for, whether the policies answer the question | **policy_agent** (LLM, tool loop) | Writes its own `search_policies` queries; max 3 searches |
+| Hide PII before any model call | code: `redact` | Pattern redaction of email, phone, street address |
+| Who the customer is | code: `identity_gate` | Order ID + email must match before any order read |
+| Whether an action is allowed | code: policy engine | Checked when the agent proposes and again at write time |
+| What actually runs | code: `resolution_agent` node | Executes only the option the customer asked for; other options become offers; disallowed offers are dropped |
+| Whether a policy answer is shown | code: citation check | Every citation must have been retrieved in this run and exist |
+| Whether the reply can be sent | code: `reply_check` | No refund claim unless one was written (negation-aware); no amounts absent from the facts |
+| Writes | code: workers | Idempotency key per order item, audit row, one transaction |
+| "Today" for the 30-day rule | code: `store_clock()` | Pinned to the synthetic store's date unless `AGENTDESK_NOW` is set |
+
+### Measured cost of adding agents (recorded runs, 8 cases)
+
+| | Model calls | Tokens |
+|---|---|---|
+| v2: planner only | 16 | 6,480 |
+| v3: three agents | 39 | 24,534 |
+
+The resolution agent adds value when a request is denied (it found two allowed
+alternatives) and adds cost without value on simple approvals, which suggests a code
+fast path for requests the policy engine already allows.
+
 ## Free-text planning (M6)
 
 `Supervisor.handle_message` is the free-text entry point:

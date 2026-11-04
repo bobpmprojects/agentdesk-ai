@@ -39,6 +39,7 @@ class Turn(ContractModel):
     with_new_address: bool = False
     expected_intents: list[PlannerIntent]
     expected_outcomes: list[tuple[PlannerIntent, str]] = Field(default_factory=list)
+    expected_agents: list[str] = Field(default_factory=lambda: ["triage_agent"])
 
 
 class AgentCase(ContractModel):
@@ -60,6 +61,7 @@ CASES: list[AgentCase] = [
                 email="customer003@northwind.test",
                 expected_intents=["refund"],
                 expected_outcomes=[("refund", "completed")],
+                expected_agents=["triage_agent", "resolution_agent"],
             ),
             Turn(
                 message="My blender arrived damaged. Please refund it.",
@@ -67,6 +69,7 @@ CASES: list[AgentCase] = [
                 email="customer003@northwind.test",
                 expected_intents=["refund"],
                 expected_outcomes=[("refund", "completed")],
+                expected_agents=["triage_agent", "resolution_agent"],
             ),
         ],
         order_for_refund_count="ORD-0008",
@@ -82,6 +85,7 @@ CASES: list[AgentCase] = [
                 email="customer002@northwind.test",
                 expected_intents=["refund"],
                 expected_outcomes=[("refund", "denied")],
+                expected_agents=["triage_agent", "resolution_agent"],
             )
         ],
         order_for_refund_count="ORD-0004",
@@ -101,6 +105,7 @@ CASES: list[AgentCase] = [
                 with_new_address=True,
                 expected_intents=["refund", "address_change"],
                 expected_outcomes=[("refund", "completed"), ("address_change", "denied")],
+                expected_agents=["triage_agent", "resolution_agent"],
             )
         ],
         order_for_refund_count="ORD-0008",
@@ -114,6 +119,7 @@ CASES: list[AgentCase] = [
                 message="Do you price match competitors?",
                 expected_intents=["policy_question"],
                 expected_outcomes=[("policy_question", "answered")],
+                expected_agents=["triage_agent", "policy_agent"],
             )
         ],
     ),
@@ -125,6 +131,7 @@ CASES: list[AgentCase] = [
                 message="What is the cash refund limit?",
                 expected_intents=["policy_question"],
                 expected_outcomes=[("policy_question", "answered")],
+                expected_agents=["triage_agent", "policy_agent"],
             )
         ],
     ),
@@ -141,6 +148,7 @@ CASES: list[AgentCase] = [
                 email="customer002@northwind.test",
                 expected_intents=["refund"],
                 expected_outcomes=[("refund", "denied")],
+                expected_agents=["triage_agent", "resolution_agent"],
             )
         ],
         order_for_refund_count="ORD-0004",
@@ -260,6 +268,9 @@ def check_case(case: AgentCase, outputs: list[AgentTurnOutput], refunds: int | N
             failures.append(
                 f"turn {index}: planned {output.plan.intents}, expected {turn.expected_intents}"
             )
+        agents = list(dict.fromkeys(step.agent for step in output.agent_steps))
+        if agents != turn.expected_agents:
+            failures.append(f"turn {index}: agents {agents}, expected {turn.expected_agents}")
         actual = [(step.intent, step.outcome) for step in output.steps]
         if turn.expected_outcomes and actual != [tuple(x) for x in turn.expected_outcomes]:
             failures.append(f"turn {index}: outcomes {actual}, expected {turn.expected_outcomes}")
@@ -288,6 +299,8 @@ def main() -> None:
                         "message": o.redacted_message,
                         "plan": o.plan.model_dump(),
                         "steps": [s.model_dump() for s in o.steps],
+                        "agent_steps": [a.model_dump() for a in o.agent_steps],
+                        "code_checks": o.code_checks,
                         "reply": o.final_reply,
                     }
                     for o in outputs

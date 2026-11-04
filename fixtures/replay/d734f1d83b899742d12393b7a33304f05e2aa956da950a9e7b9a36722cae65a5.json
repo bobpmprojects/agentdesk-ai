@@ -16,11 +16,11 @@
     "tool_schema_version": "m6-v1"
   },
   "response": {
-    "text": "{\"intents\": [\"refund\"], \"reason\": \"damaged\", \"needs_clarification\": false, \"clarifying_question\": null, \"rationale\": \"Customer reports a damaged blender and explicitly asks for a refund.\"}",
+    "text": "{\"intents\": [\"refund\"], \"reason\": \"damaged\", \"needs_clarification\": false, \"clarifying_question\": null, \"rationale\": \"Customer reports a damaged blender and asks for a refund.\"}",
     "usage": {
       "cost_usd": 0.0,
       "input_tokens": 443,
-      "output_tokens": 72
+      "output_tokens": 68
     }
   }
 }

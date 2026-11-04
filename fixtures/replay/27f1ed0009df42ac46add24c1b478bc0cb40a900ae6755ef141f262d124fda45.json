@@ -16,11 +16,11 @@
     "tool_schema_version": "m6-v1"
   },
   "response": {
-    "text": "{\"intents\": [\"refund\"], \"reason\": null, \"needs_clarification\": true, \"clarifying_question\": \"I can help with a refund request. Which order is it for, and what is the reason for the return (for example, damaged or wrong item)?\", \"rationale\": \"Customer is asking for money back on an order but gave no order details or reason for the return.\"}",
+    "text": "{\"intents\": [\"refund\"], \"reason\": null, \"needs_clarification\": false, \"clarifying_question\": null, \"rationale\": \"Customer is asking for money back on a purchase.\"}",
     "usage": {
       "cost_usd": 0.0,
       "input_tokens": 463,
-      "output_tokens": 110
+      "output_tokens": 61
     }
   }
 }

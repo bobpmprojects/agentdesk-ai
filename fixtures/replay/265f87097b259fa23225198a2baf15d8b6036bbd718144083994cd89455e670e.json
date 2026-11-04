@@ -1,0 +1,50 @@
+{
+  "request": {
+    "messages": [
+      {
+        "content": "You are the Policy agent for Northwind Goods, an online store. Answer the customer's question using ONLY the store's written policy sections, which you find with a search tool.\n\nReply with ONLY one JSON object per turn, no prose. Either a tool call:\n{\"thought\": \"one short sentence\", \"tool\": \"search_policies\", \"args\": {\"query\": \"keywords\"}}\nor your final answer:\n{\"thought\": \"one short sentence\", \"final\": {\"covered\": true | false, \"answer\": \"one or two sentences, only if covered\", \"citations\": [\"document#section_id\", ...]}}\n\nTool:\n- search_policies {\"query\": \"...\"}: keyword search over the policy documents; returns up to 3 sections with their id, title and text.\n\nRules:\n- Search with your own keywords. If results do not answer the question, try different keywords once or twice.\n- Only set covered to true when a returned section directly answers the question. Cite only sections you were shown.\n- If no section answers it, set covered to false. Never answer from general knowledge.\n- Use at most three searches.",
+        "role": "system"
+      },
+      {
+        "content": "Customer question: Do you price match competitors?",
+        "role": "user"
+      },
+      {
+        "content": "{\"thought\": \"I need to search the policies for price matching information.\", \"tool\": \"search_policies\", \"args\": {\"query\": \"price match competitors\"}}",
+        "role": "assistant"
+      },
+      {
+        "content": "Observation: {\"note\": \"No section matched. Try different keywords.\", \"sections\": []}",
+        "role": "user"
+      },
+      {
+        "content": "{\"thought\": \"First search found nothing, so I'll try different keywords.\", \"tool\": \"search_policies\", \"args\": {\"query\": \"price adjustment lower price competitor\"}}",
+        "role": "assistant"
+      },
+      {
+        "content": "Observation: {\"note\": \"No section matched. Try different keywords.\", \"sections\": []}",
+        "role": "user"
+      },
+      {
+        "content": "{\"thought\": \"Two searches found nothing, so I'll try one more with broader keywords.\", \"tool\": \"search_policies\", \"args\": {\"query\": \"price guarantee matching\"}}",
+        "role": "assistant"
+      },
+      {
+        "content": "Observation: {\"note\": \"No section matched. Try different keywords.\", \"sections\": []}",
+        "role": "user"
+      }
+    ],
+    "model_id": "claude-sonnet-5-5",
+    "provider": "anthropic",
+    "template_version": "m7-policy-v1",
+    "tool_schema_version": "m7-policy-v1-tools"
+  },
+  "response": {
+    "text": "{\"thought\": \"Three searches returned no policy section on price matching, so I cannot answer from policy.\", \"final\": {\"covered\": false, \"citations\": []}}",
+    "usage": {
+      "cost_usd": 0.0,
+      "input_tokens": 614,
+      "output_tokens": 52
+    }
+  }
+}

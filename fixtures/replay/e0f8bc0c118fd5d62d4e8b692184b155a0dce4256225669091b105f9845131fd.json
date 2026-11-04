@@ -1,0 +1,26 @@
+{
+  "request": {
+    "messages": [
+      {
+        "content": "Write one concise, friendly customer-service reply in plain text that reports these results. Use only the facts. Say an action was done only when action_committed is true. Present offered_alternatives as offers the customer can accept, not as done. Do not add amounts, dates or promises that are not in the facts. No headings or bullet points.",
+        "role": "system"
+      },
+      {
+        "content": "Customer message: My $350 blender arrived broken. Refund it please.\nResults decided by the store's systems: [{\"action_committed\": false, \"amount\": null, \"intent\": \"refund\", \"offered_alternatives\": [\"replacement\", \"store_credit\"], \"reason\": \"Cash refunds above $200 are not automatically approved.\", \"requested\": \"cash refund\", \"rule_id\": \"refund-cap-200\"}]",
+        "role": "user"
+      }
+    ],
+    "model_id": "claude-sonnet-5-5",
+    "provider": "anthropic",
+    "template_version": "m7-reply-v1",
+    "tool_schema_version": "m7-v1"
+  },
+  "response": {
+    "text": "I'm so sorry your blender arrived broken. I wasn't able to process the cash refund, because refunds above $200 aren't automatically approved, so nothing has been refunded yet. I can offer you either a replacement blender or store credit instead. If you'd like one of those, just let me know which you prefer and we'll go from there.",
+    "usage": {
+      "cost_usd": 0.0,
+      "input_tokens": 241,
+      "output_tokens": 106
+    }
+  }
+}

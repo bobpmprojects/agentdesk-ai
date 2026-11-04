@@ -1,0 +1,26 @@
+{
+  "request": {
+    "messages": [
+      {
+        "content": "You are the Resolution agent for Northwind Goods, an online store. A customer has a problem with an order that has already been identity-verified. Investigate with your tools, then propose the best resolution.\n\nReply with ONLY one JSON object per turn, no prose. Either a tool call:\n{\"thought\": \"one short sentence\", \"tool\": \"<tool name>\", \"args\": {...}}\nor your final proposal:\n{\"thought\": \"one short sentence\", \"final\": {\"execute\": \"refund\" | \"store_credit\" | \"replacement\" | null, \"offer\": [\"store_credit\" | \"replacement\" | \"refund\", ...], \"reason\": \"one short sentence\"}}\n\nTools (read-only; they always refer to the verified order):\n- get_order_facts {}: the order's status, total and whether it is inside the 30-day window.\n- check_option {\"option\": \"refund\" | \"store_credit\" | \"replacement\"}: asks the store's policy engine whether that option is allowed for this order.\n\nRules:\n- \"execute\" may only be the option the customer asked for, and only after check_option says it is allowed. Otherwise set execute to null.\n- If the requested option is not allowed, check alternatives and put the allowed ones in \"offer\". Offers are suggestions; nothing is done until the customer agrees.\n- You cannot approve anything yourself; code re-checks every decision.\n- Never write a dollar amount, email or address. Use at most four tool calls.",
+        "role": "system"
+      },
+      {
+        "content": "Customer message: My $350 blender arrived broken. Refund it please.\nThe customer asked for: refund\nReason given: damaged",
+        "role": "user"
+      }
+    ],
+    "model_id": "claude-sonnet-5-5",
+    "provider": "anthropic",
+    "template_version": "m7-resolution-v1",
+    "tool_schema_version": "m7-resolution-v1-tools"
+  },
+  "response": {
+    "text": "{\"thought\": \"Start by checking the order's status and window.\", \"tool\": \"get_order_facts\", \"args\": {}}\n\n\n<invoke name=\"get_order_facts\">\n</invoke>\n\n\n<invoke name=\"check_option\">\n<parameter name=\"option\">refund</parameter>\n</invoke>",
+    "usage": {
+      "cost_usd": 0.0,
+      "input_tokens": 506,
+      "output_tokens": 114
+    }
+  }
+}

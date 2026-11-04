@@ -16,11 +16,11 @@
     "tool_schema_version": "m6-v1"
   },
   "response": {
-    "text": "{\"intents\": [\"order_status\", \"refund\"], \"reason\": \"damaged\", \"needs_clarification\": false, \"clarifying_question\": null, \"rationale\": \"Customer wants tracking on their other order and a refund for a kettle that arrived broken.\"}",
+    "text": "{\"intents\": [\"order_status\", \"refund\"], \"reason\": \"damaged\", \"needs_clarification\": false, \"clarifying_question\": null, \"rationale\": \"Customer wants a refund for a kettle that arrived broken and also asks for the status of another order.\"}",
     "usage": {
       "cost_usd": 0.0,
       "input_tokens": 451,
-      "output_tokens": 82
+      "output_tokens": 84
     }
   }
 }

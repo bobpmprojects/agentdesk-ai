@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 from typing import Literal
 from uuid import NAMESPACE_URL, uuid5
@@ -14,6 +15,20 @@ from agentdesk.schemas.common import (
     OrderStatus,
     PolicyDecision,
 )
+
+# The synthetic store has its own clock so the 30-day rule gives the same answer every
+# day the demo and evals run. Seed data marks deliveries on 2026-10-20.
+DEMO_STORE_NOW = datetime(2026, 10, 25, 12, 0, tzinfo=UTC)
+
+
+def store_clock() -> datetime:
+    """Return the store's current time: AGENTDESK_NOW (ISO or "real"), else the demo clock."""
+    value = os.environ.get("AGENTDESK_NOW")
+    if value == "real":
+        return datetime.now(UTC)
+    if value:
+        return datetime.fromisoformat(value)
+    return DEMO_STORE_NOW
 
 
 class PolicyCheckInput(ContractModel):
@@ -33,7 +48,7 @@ class PolicyCheckInput(ContractModel):
     delivered_at: datetime | None = None
     address_change_count: int = Field(default=0, ge=0)
     replacement_context: bool = False
-    now: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    now: datetime = Field(default_factory=store_clock)
 
 
 class PolicyEngine:
