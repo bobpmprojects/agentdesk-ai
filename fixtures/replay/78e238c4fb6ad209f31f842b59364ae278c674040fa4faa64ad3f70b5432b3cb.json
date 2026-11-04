@@ -16,7 +16,7 @@
     "tool_schema_version": "m6-v1"
   },
   "response": {
-    "text": "{\"intents\": [\"order_status\"], \"reason\": null, \"needs_clarification\": false, \"clarifying_question\": null, \"rationale\": \"Customer wants to know the shipping status and expected delivery date of their order.\"}",
+    "text": "{\"intents\": [\"order_status\"], \"reason\": null, \"needs_clarification\": false, \"clarifying_question\": null, \"rationale\": \"Customer is asking whether an order has shipped and its expected delivery date.\"}",
     "usage": {
       "cost_usd": 0.0,
       "input_tokens": 449,

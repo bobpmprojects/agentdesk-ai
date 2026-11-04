@@ -75,6 +75,22 @@ _UNSUPPORTED_REFUND_CLAIM = re.compile(
 )
 
 
+_NEGATION = re.compile(r"\b(?:not|no|nothing|never|unable|cannot)\b|n't\b", re.IGNORECASE)
+
+
+def claims_unwritten_refund(text: str) -> bool:
+    """True when the text affirmatively claims a refund happened.
+
+    A match preceded by a negation ("nothing has been refunded", "wasn't processed")
+    is a denial, not a claim.
+    """
+    for match in _UNSUPPORTED_REFUND_CLAIM.finditer(text):
+        window = text[max(0, match.start() - 30) : match.start()]
+        if not _NEGATION.search(window):
+            return True
+    return False
+
+
 def _refund_denial_reply(facts: dict[str, Any]) -> str:
     reply = f"I wasn't able to approve this cash refund. {facts.get('reason') or ''}".strip()
     if "store credit" in str(facts.get("alternative") or "").lower():
@@ -965,7 +981,7 @@ class AgentDeskGraph:
             state.operation == "refund"
             and state.facts
             and not state.facts[0].get("action_committed")
-            and _UNSUPPORTED_REFUND_CLAIM.search(text)
+            and claims_unwritten_refund(text)
         ):
             text = _refund_denial_reply(state.facts[0])
             self._trace(

@@ -8,10 +8,13 @@ SQLite backend while deterministic Python policy rules authorize every write.
 
 ## What it demonstrates
 
-- **An LLM planner reads free text and decides what the customer wants** (refund, address
-  change, order status, policy question, or several at once). Code then verifies identity
-  and approves or denies every action. The planner's output schema cannot express an
-  amount, an approval, or a customer.
+- **Three agents propose; deterministic code decides.** A triage agent plans the intents
+  from free text, a resolution agent investigates order problems with read-only tools, and
+  a policy agent runs its own searches over the store's policies. Code verifies identity,
+  approves or denies every action (when proposed and again at write time), executes only
+  what the customer asked for, verifies citations, and checks the reply. See the
+  "Who decides what" table in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+- The plan schema cannot express an amount, an approval, or a customer.
 - PII typed into the chat box is redacted before any model sees it.
 - A code-level output check stops a reply from claiming a refund that was never written.
 - Supervisor plans with Identity, Orders, Returns & Refunds, Account, and
@@ -165,9 +168,11 @@ live model.
 
 ## Current limitations
 
-- The LLM planner chooses which tested flow runs; it does not yet loop over tools step by
-  step. An address change on its own, and policy questions mixed into order requests, use
-  simple handling.
+- Address changes and order status run as code workers, not agents.
+- Three agents cost about 3.8x the tokens of the single planner on the recorded cases;
+  simple approvals do not need the resolution agent's loop.
+- The store clock is pinned to the synthetic data's date; set `AGENTDESK_NOW=real` for
+  wall-clock time.
 - Redaction of free text uses patterns (email, phone, street address), not a PII model.
 - Return labels and replacements are local mock references, not carrier/warehouse calls.
 - The generic Streamlit form does not expose every multi-intent and multi-turn control;

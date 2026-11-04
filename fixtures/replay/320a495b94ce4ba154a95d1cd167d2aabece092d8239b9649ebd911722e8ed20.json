@@ -16,11 +16,11 @@
     "tool_schema_version": "m6-v1"
   },
   "response": {
-    "text": "{\"intents\": [], \"reason\": null, \"needs_clarification\": true, \"clarifying_question\": \"Hi there! How can I help you today, for example with an order's status, a refund, an address change, or a question about our policies?\", \"rationale\": \"The message is only a greeting with no identifiable request.\"}",
+    "text": "{\"intents\": [], \"reason\": null, \"needs_clarification\": true, \"clarifying_question\": \"Hi, how can I help you today? For example, I can check an order's status, help with a refund, change a shipping address, or answer a question about our policies.\", \"rationale\": \"The message is only a greeting with no identifiable request.\"}",
     "usage": {
       "cost_usd": 0.0,
       "input_tokens": 430,
-      "output_tokens": 94
+      "output_tokens": 103
     }
   }
 }

@@ -16,7 +16,7 @@
     "tool_schema_version": "m6-v1"
   },
   "response": {
-    "text": "{\"intents\": [\"order_status\"], \"reason\": null, \"needs_clarification\": false, \"clarifying_question\": null, \"rationale\": \"Customer is asking where their package is, which is an order status/tracking request.\"}",
+    "text": "{\"intents\": [\"order_status\"], \"reason\": null, \"needs_clarification\": false, \"clarifying_question\": null, \"rationale\": \"Customer is asking where their package is, which is a request for order tracking status.\"}",
     "usage": {
       "cost_usd": 0.0,
       "input_tokens": 433,

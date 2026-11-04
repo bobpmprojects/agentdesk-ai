@@ -1,0 +1,26 @@
+{
+  "request": {
+    "messages": [
+      {
+        "content": "Write one concise, friendly customer-service reply in plain text that reports these results. Use only the facts. Say an action was done only when action_committed is true. Present offered_alternatives as offers the customer can accept, not as done. Do not add amounts, dates or promises that are not in the facts. No headings or bullet points.",
+        "role": "system"
+      },
+      {
+        "content": "Customer message: My blender arrived damaged. Please refund it.\nResults decided by the store's systems: [{\"action_committed\": true, \"amount\": \"149\", \"intent\": \"refund\", \"offered_alternatives\": [], \"reason\": \"The refund is within $200 and 30 days of delivery.\", \"requested\": \"cash refund\", \"rule_id\": \"refund-within-cap-and-window\"}]",
+        "role": "user"
+      }
+    ],
+    "model_id": "claude-sonnet-5-5",
+    "provider": "anthropic",
+    "template_version": "m7-reply-v1",
+    "tool_schema_version": "m7-v1"
+  },
+  "response": {
+    "text": "I'm sorry your blender arrived damaged. I've processed your cash refund of $149, which was approved because it falls within our $200 limit and 30 days of delivery. Thanks for letting us know, and please reach out if you need anything else.",
+    "usage": {
+      "cost_usd": 0.0,
+      "input_tokens": 233,
+      "output_tokens": 78
+    }
+  }
+}

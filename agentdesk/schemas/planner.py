@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, SecretStr, field_validator
 
@@ -44,12 +44,27 @@ class ExecutedStep(ContractModel):
     """One step the code ran after the plan, and what the code decided."""
 
     intent: PlannerIntent
-    outcome: Literal["completed", "denied", "answered", "needs_input", "unsupported"]
+    outcome: Literal[
+        "completed", "denied", "answered", "needs_input", "unsupported", "escalated"
+    ]
     detail: str
+    decided_by: str = "code"
+
+
+class AgentStep(ContractModel):
+    """One turn of an agent's tool loop, shown in the UI and the trace."""
+
+    agent: str
+    thought: str = Field(default="", max_length=600)
+    tool: str | None = None
+    args: dict[str, Any] = Field(default_factory=dict)
+    observation: dict[str, Any] | None = None
 
 
 class AgentTurnOutput(ContractModel):
     redacted_message: str
     plan: PlannerOutput
     steps: list[ExecutedStep] = Field(default_factory=list)
+    agent_steps: list[AgentStep] = Field(default_factory=list)
+    code_checks: list[str] = Field(default_factory=list)
     final_reply: str
