@@ -64,6 +64,20 @@ Conditional dotted edges are selected from typed graph state:
 - Policy: `supervisor → policy_knowledge → verifier → finalize`
 - Follow-up: `supervisor → memory → returns_refunds → model_reply → finalize`
 
+## Free-text planning (M6)
+
+`Supervisor.handle_message` is the free-text entry point:
+
+1. `redact_free_text` replaces emails, phone numbers and street addresses in the message.
+2. `PlannerAgent` (the LLM) returns a `PlannerOutput`: an ordered list of intents
+   (`order_status`, `refund`, `address_change`, `policy_question`), a refund reason, and an
+   optional clarifying question. Unknown fields are rejected, so the plan cannot carry an
+   amount or an approval. An invalid plan falls back to a clarifying question.
+3. Code verifies the order ID and email before any order data is read.
+4. Each intent runs through the compiled graph below. The policy engine decides every
+   action; idempotency keys are derived from the order and item, so asking twice writes once.
+5. An output check replaces a refund reply that claims an action no tool committed.
+
 ## Runtime layers
 
 1. Streamlit or scripted scenarios construct a typed Supervisor request.

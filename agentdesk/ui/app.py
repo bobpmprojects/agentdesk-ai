@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import streamlit as st
 
+from agentdesk.agent_cases import CASES, NEW_ADDRESS
 from agentdesk.agents.langchain_adapter import LangChainModelClient
 from agentdesk.agents.supervisor import Supervisor
 from agentdesk.config import LLMMode, Settings
@@ -12,8 +13,8 @@ from agentdesk.db.connection import connect
 from agentdesk.db.repository import Repository
 from agentdesk.db.seed import seed_database
 from agentdesk.runtime.replay import ReplayMissError
-from agentdesk.schemas.agents import PolicySupervisorInput, SupervisorInput
 from agentdesk.schemas.common import AgentContext
+from agentdesk.schemas.planner import CustomerTurnInput
 
 st.set_page_config(page_title="AgentDesk", page_icon="🧭", layout="wide")
 settings = Settings()
@@ -82,14 +83,24 @@ with st.sidebar:
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.write(message["content"])
+        if message.get("plan"):
+            with st.expander("How the agent decided"):
+                st.markdown("**Model decided (planner):**")
+                st.json(message["plan"])
+                st.markdown("**Code decided (identity + policy engine):**")
+                st.json(message["steps"])
+
+examples = {f"{case.use_case}": case.turns[0] for case in CASES}
+choice = st.selectbox("Try a recorded use case", list(examples))
+example = examples[choice]
 
 with st.form("customer_request"):
-    order_id = st.text_input("Order ID", value="ORD-0002")
-    email = st.text_input(
-        "Email", value="customer001@northwind.test", type="password"
-    )
-    customer_message = st.text_input(
-        "Message", value="Where is my order?"
+    order_id = st.text_input("Order ID", value=example.order_id or "")
+    email = st.text_input("Email", value=example.email or "", type="password")
+    customer_message = st.text_input("Message", value=example.message)
+    include_address = st.checkbox(
+        "Include a new shipping address (from the address form, not free text)",
+        value=example.with_new_address,
     )
     submitted = st.form_submit_button("Send")
 
@@ -114,31 +125,34 @@ if submitted:
         on_node=on_node,
     )
     supervisor_ref["runtime"] = supervisor
+    plan: dict | None = None
+    steps: list[dict] = []
     try:
-        context = AgentContext(
-            conversation_id=st.session_state.conversation_id,
-            turn_id=uuid4(),
-            customer_message=customer_message,
-        )
-        policy_terms = {"policy", "refund limit", "return window", "price match"}
-        if any(term in customer_message.lower() for term in policy_terms):
-            result = supervisor.run_policy(PolicySupervisorInput(context=context))
-        else:
-            result = supervisor.run(
-                SupervisorInput(
-                    context=context,
-                    order_id=order_id,
-                    email=email,
-                )
+        result = supervisor.handle_message(
+            CustomerTurnInput(
+                context=AgentContext(
+                    conversation_id=st.session_state.conversation_id,
+                    turn_id=uuid4(),
+                    customer_message=customer_message,
+                ),
+                order_id=order_id or None,
+                email=email or None,
+                new_address=NEW_ADDRESS if include_address else None,
             )
+        )
         reply = result.final_reply
+        plan = result.plan.model_dump()
+        steps = [step.model_dump() for step in result.steps]
     except ReplayMissError:
         reply = (
-            "This request has no replay fixture. Run the scenario in RECORD mode first."
+            "This message has no recorded model reply. Pick a recorded use case, or run "
+            "in RECORD mode with an API key."
         )
     finally:
         connection.close()
-    st.session_state.messages.append({"role": "assistant", "content": reply})
+    st.session_state.messages.append(
+        {"role": "assistant", "content": reply, "plan": plan, "steps": steps}
+    )
     st.session_state.trace = [
         event.model_dump(mode="json") for event in supervisor.trace.events
     ]

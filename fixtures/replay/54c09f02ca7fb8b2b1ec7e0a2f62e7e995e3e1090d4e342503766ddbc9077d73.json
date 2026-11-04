@@ -1,0 +1,26 @@
+{
+  "request": {
+    "messages": [
+      {
+        "content": "Check customer-service tone and unsupported promises. Return JSON only with this exact shape: {\"tone_ok\": true, \"unsupported_promises\": []}. A promise is unsupported if it claims an action, timing, guarantee, or policy not present in the supplied evidence.",
+        "role": "system"
+      },
+      {
+        "content": "Draft: I couldn't find that answer in the Northwind Goods policy documents, so I can't make a policy claim about it.\nAudited action claims: []\nPolicy evidence: []",
+        "role": "user"
+      }
+    ],
+    "model_id": "claude-sonnet-5-5",
+    "provider": "anthropic",
+    "template_version": "m4-verifier-v1",
+    "tool_schema_version": "m4-v1"
+  },
+  "response": {
+    "text": "{\"tone_ok\": true, \"unsupported_promises\": []}",
+    "usage": {
+      "cost_usd": 0.0,
+      "input_tokens": 155,
+      "output_tokens": 23
+    }
+  }
+}

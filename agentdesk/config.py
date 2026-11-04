@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     llm_mode: LLMMode = LLMMode.REPLAY
     anthropic_api_key: SecretStr | None = None
     openai_api_key: SecretStr | None = None
-    anthropic_model_id: str = "claude-sonnet-4-20250514"
+    anthropic_model_id: str = "claude-sonnet-5-5"
     openai_model_id: str = "gpt-4o"
     bedrock_model_id: str = "anthropic.claude-sonnet-4-20250514-v1:0"
     database_path: Path = Field(default=ROOT_DIR / ".local" / "agentdesk.db")

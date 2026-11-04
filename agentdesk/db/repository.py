@@ -109,6 +109,15 @@ class Repository:
             total=Money(amount=Decimal(row["total_cents"]) / 100),
         )
 
+    def get_order_item(self, identity: VerifiedIdentity, order_id: str) -> str | None:
+        """Return the order's item ID, only for a verified identity on that order."""
+        if not self._identity_matches(identity, order_id):
+            return None
+        row = self.connection.execute(
+            "SELECT item_id FROM orders WHERE id = ?", (order_id,)
+        ).fetchone()
+        return row["item_id"] if row is not None else None
+
     def get_tracking(
         self, identity: VerifiedIdentity, order_id: str
     ) -> GetTrackingResult:
