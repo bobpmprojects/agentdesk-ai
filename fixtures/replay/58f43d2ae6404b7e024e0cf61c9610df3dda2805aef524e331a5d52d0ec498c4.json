@@ -1,0 +1,26 @@
+{
+  "request": {
+    "messages": [
+      {
+        "content": "Summarize the ordered results using only these facts. Clearly distinguish completed and denied steps.",
+        "role": "system"
+      },
+      {
+        "content": "Customer request: My blender arrived broken. Refund it, and change the shipping address on the order to my new place.\nOrdered step results: [{'step': 'refund', 'allowed': True, 'amount': '149', 'reason': 'The refund is within $200 and 30 days of delivery.'}, {'step': 'change original order address', 'allowed': False, 'reason': 'The order has already shipped, so its address cannot be changed. Use the new address for a future order or eligible replacement.'}]",
+        "role": "user"
+      }
+    ],
+    "model_id": "claude-sonnet-5-5",
+    "provider": "anthropic",
+    "template_version": "m3-multi-intent-v1",
+    "tool_schema_version": "m3-v1"
+  },
+  "response": {
+    "text": "**Summary of your request**\n\n**Completed**\n- **Refund: approved.** Your refund of $149 was allowed because it falls within the $200 limit and within 30 days of delivery.\n\n**Denied**\n- **Shipping address change: not allowed.** The order has already shipped, so its address can't be changed. You can use your new address for a future order or an eligible replacement.",
+    "usage": {
+      "cost_usd": 0.0,
+      "input_tokens": 200,
+      "output_tokens": 119
+    }
+  }
+}

@@ -4,7 +4,7 @@ This file is the only source for a hiring-manager deck. Copy the on-slide text. 
 
 **Repo:** https://github.com/bobpmprojects/agentdesk-ai  
 **Audience:** a hiring manager for a product or applied-AI role  
-**Length:** 12 slides. One idea per slide. Speaker notes stay off the slide.
+**Length:** 12 slides, plus one backup slide (B1) shown only if asked. One idea per slide. Speaker notes stay off the slide.
 
 Product: AgentDesk. Fictional store: Northwind Goods. All customers and orders are synthetic.
 
@@ -19,6 +19,7 @@ Product: AgentDesk. Fictional store: Northwind Goods. All customers and orders a
 - Never say this is in production, handles real customers, or plans with a model.
 - Never say the verifier checks every reply. It checks policy replies.
 - The impressive claim is judgment under constraint: the agent can finish a request, refuse an illegal one, remember a follow-up, and prove it.
+- Never say AgentDesk is GDPR, CCPA, SOC 2, or HIPAA compliant, or that it enforces data residency. Appendix F separates what is built from what is designed.
 
 ---
 
@@ -267,6 +268,26 @@ MODEL_PROVIDER=openai LLM_MODE=replay uv run streamlit run agentdesk/ui/app.py
 
 ---
 
+## Backup slide B1 — Trust is a node, not a promise
+
+Show only if the hiring manager asks about privacy, security, or compliance. Source: Appendix F.
+
+**On slide**
+
+| Control | Built today | Where |
+|---|---|---|
+| Identity | Order ID + email must match before any read or write | Identity agent |
+| Privacy | Email is a secret type. Traces redact PII. The model never sees an email or street address. | Tools, tracing, model reply |
+| Governance | Rules are versioned code. Every write has an audit row and a policy decision ID. | Policy engine, audit log |
+| Compliance | CI fails on one policy violation | GitHub Actions |
+| Data residency | Designed, not built | Next version |
+
+**Speaker note**
+
+Each control lives in one node, so I can test it and point to it. The model writes sentences; it never holds customer PII and never approves an action. I would not call this compliant with any regulation. What I can show is the evidence a compliance review asks for: who was verified, which rule decided, what was written, and a build that fails when a rule is broken. Residency is the honest gap; Appendix F has the design.
+
+---
+
 ## Screenshot files
 
 Put these on slides 4 and 5. They were captured from the running Streamlit app in replay mode.
@@ -362,6 +383,7 @@ Seed data: 50 customers, 150 orders. Default demo: order `ORD-0002`, email `cust
 - Labels, replacements, and payments are local mock records.
 - `.env` and API keys are not in the repo.
 - CI run `40976292028` passed on commit `09c5562`. Later doc commits do not change that code result.
+- No compliance certification or legal review exists. Data residency, consent, retention, deletion requests, and role-based access are designs, not code. See Appendix F.
 
 ---
 
@@ -441,3 +463,181 @@ Result: **27 / 27** pytest tests passed. The replay evaluation passed **5 / 5** 
 | `m3-multi-intent` | The refund succeeds and the address change is denied |
 | `m4-policy-grounding` | The refund-limit answer cites `returns-and-refunds.md#refund-limit` |
 | `m5-follow-up` | A later message changes the resolution to store credit |
+
+---
+
+## Appendix F — identity, privacy, residency, governance, compliance
+
+Use this when someone asks "how would this pass a security or compliance review?" Every row says whether it is **built** (in code, with a test or file to show) or **designed** (the next step, not in this version). Do not move a designed row into a built claim.
+
+### The principle
+
+Trust controls are placed in nodes, not in the prompt. A prompt can be argued with. A node either runs or the request stops.
+
+```mermaid
+flowchart LR
+    C[Customer] --> S[Supervisor]
+    S --> I[Identity<br/>verify before read]
+    I --> X[Specialist<br/>Orders / Refunds / Account]
+    X --> E[Policy engine<br/>rule + decision ID]
+    E --> W[Guarded write<br/>idempotency + audit row]
+    W --> M[Model reply<br/>facts only, no PII]
+    M --> V[Verifier<br/>policy replies]
+    V --> Reply[Customer reply]
+    T[Trace collector<br/>redacts PII] -.-> S & I & X & E & W & M & V
+```
+
+### 1. Identity — built
+
+| What | Evidence |
+|---|---|
+| Order ID + email must match before any customer, order, shipment, refund, or address data is read or changed | `agentdesk/agents/identity.py`, `db/repository.py` `verify_identity`, policy `identity-and-privacy.md#order-verification` |
+| A wrong email stops the flow before any order lookup | `tests/integration/test_m1_order_status.py` |
+| Nothing is written without verification | `tests/integration/test_m2_guarded_writes.py` |
+| Identity is the first rule the policy engine checks | `tests/unit/test_m2_policy_engine.py` |
+| After verification, agents pass a `VerifiedIdentity` (customer ID, order ID, verification ID, time), not the email | `schemas/tools.py` |
+
+Designed, not built: step-up verification (one-time code) before money moves above a threshold; rate-limiting failed matches to stop order-ID guessing; staff identity and roles for a human-agent console.
+
+### 2. Privacy — built
+
+| What | Evidence |
+|---|---|
+| Email is a Pydantic `SecretStr` in every agent and tool schema, so it does not print in logs or reprs | `schemas/agents.py`, `schemas/tools.py` |
+| Traces redact email, street lines, postal code, tracking number, and API keys | `runtime/tracing.py`; test "Traces redact personal information" in `test_m0_foundation.py` |
+| Tracking numbers are masked to the last four digits before they reach the reply | `db/repository.py` (`••••0002`) |
+| The model receives only the decided facts. The committed model prompts contain no email or street address | `fixtures/replay/` |
+| Conversation memory keeps verified IDs, intents, and prior actions, not the raw email or street address | `runtime/conversation.py`, `ConversationState` |
+| No API keys in the repo; keys are `SecretStr` settings from `.env` | `config.py`, `.gitignore` |
+
+Designed, not built: retention window and automatic purge of `conversation_state`; a customer data-export and delete request flow; consent and purpose records; PII detection on free text the customer types (today redaction is by field name, not content).
+
+### 3. Data residency — designed, not built
+
+Today everything runs locally: SQLite on the machine, and in RECORD mode one model provider chosen by `MODEL_PROVIDER`. There is no region pin.
+
+The design, if a customer said "EU data stays in the EU":
+
+1. A `region` field on the tenant and conversation, set at intake.
+2. The Supervisor picks the database and model endpoint for that region. The specialists do not change.
+3. The policy engine adds one rule: refuse a call whose endpoint region does not match the data region.
+4. The audit row records the region used, so residency is provable after the fact.
+
+Why it fits this architecture: model choice is already behind one adapter (`agents/langchain_adapter.py`), and every write already goes through one engine and one audit table. Residency is a routing rule plus one more check, not a rewrite.
+
+### 4. Governance — built
+
+| What | Evidence |
+|---|---|
+| Business rules are plain Python, versioned in git and reviewed like code. The model cannot change them | `agentdesk/policy/engine.py` |
+| Every decision returns a rule ID, reason, and deterministic decision ID (same input, same ID) | `PolicyDecision` in `schemas/common.py` |
+| Every write has an idempotency key and an `audit_log` row: operation, outcome (`committed`, `denied`, `duplicate`, `failed`), policy decision ID, time | `db/schema.sql` |
+| Policy answers must cite a real section, or say the answer is not in the policy | `tests/integration/test_m4_policy_verifier.py` |
+| Agents have narrow tools. A policy question cannot trigger a refund | Slide 6, `agents/` |
+| Model replies are recorded and committed, so behavior can be reviewed and replayed | `fixtures/replay/` |
+
+Designed, not built: a policy version stamped on each audit row; approval workflow for rule changes; a human review queue for denied or ambiguous cases; a model and prompt inventory per release.
+
+### 5. Compliance — partial
+
+Built: the evidence a review asks for. Who was verified, which rule decided, what was written, what the model was shown, and a CI build that fails on one policy violation (`.github/workflows/ci.yml`, `tests/evals/test_replay_evals.py`).
+
+Not built, and not claimed: any certification or legal review (GDPR, CCPA, SOC 2, PCI). Payments are mock records, so PCI scope is not exercised.
+
+The line to say: "I built the controls and the audit trail that make a compliance review possible. I would not call a demo compliant."
+
+### Per-node summary
+
+| Node | Identity | Privacy | Residency | Governance | Compliance evidence |
+|---|---|---|---|---|---|
+| Supervisor | Routes to Identity first | Sees request text only | Designed: picks regional endpoint | Keyword routing, no free-form chatter | Trace |
+| Identity | Order ID + email match | Email as `SecretStr` | Designed | Policy-gated | Test |
+| Orders / Refunds / Account | Require `VerifiedIdentity` | Masked tracking | Designed | One kind of change each | Audit row |
+| Policy engine | Rule 1 is identity | No PII in decision | Designed: region-match rule | Rule ID + decision ID | Unit tests |
+| Model reply | Never sees email | Facts only | Designed: regional model | Cannot approve actions | Replay fixtures |
+| Verifier | — | Blocks fabricated claims | — | Citation must exist | Test |
+| Trace collector | — | Redacts by field | — | Every step logged | CI |
+
+### Top three upgrades to make this real, ranked
+
+1. **Retention and delete-request flow.** Smallest code change, and the first question a privacy reviewer asks.
+2. **Region field plus region-match policy rule.** Turns residency from a design into a test.
+3. **Policy version on every audit row.** Makes "which rule was in force on that day" answerable.
+
+---
+
+## Appendix G — talk track: one point, one tradeoff, one trust control per slide
+
+Say these out loud. Do not put them on the slide. Each slide gets three lines: **Point** (what to remember), **Tradeoff** (what I gave up and why), **Trust** (the identity, privacy, governance, or compliance control in that use case). Trust lines marked *(designed)* are not in code; say so if you use them.
+
+### Slide 1 — Title
+- **Point:** Separate judgment from permission. The model decides what the customer wants; code decides what is allowed.
+- **Tradeoff:** Less "magic." The agent cannot improvise a goodwill refund, because flexibility and provable safety pull in opposite directions, and I chose safety.
+- **Trust:** Governance by design: no model output can move money or change an account without passing the policy engine.
+
+### Slide 2 — The request that can go wrong (broken blender, refund + new address)
+- **Point:** One customer sentence holds four product risks: wrong person, wrong amount, duplicate, invented policy.
+- **Tradeoff:** I designed for the failure cases first, not the happy path. Slower to demo, but each risk became a test.
+- **Trust:** Each risk maps to a control: identity check (wrong person), `refund-cap-200` (amount), idempotency key (duplicate), citation check (invented policy).
+
+### Slide 3 — The product decision (three jobs, three owners)
+- **Point:** Agents decide what, the Python engine decides if, the verifier decides what can be said.
+- **Tradeoff:** More components to build and maintain than one agent with tools, in exchange for each owner being testable alone.
+- **Trust:** Separation of duties, the same principle as maker-checker in finance: the actor and the approver are different components.
+
+### Slide 4 — Order status (`ORD-0002`, "Where is my order?")
+- **Point:** Facts come from the database; the model only phrases them.
+- **Tradeoff:** Replay mode makes the demo deterministic and free, but it is not proof of live-model quality on new wording.
+- **Trust:** Privacy: identity must match before the lookup, the tracking number is masked to `••••0002`, and the model never sees the email or street address.
+
+### Slide 5 — You can watch it run (live graph)
+- **Point:** The graph shown is exported from the running system, not drawn for a slide.
+- **Tradeoff:** An explicit graph is more code than letting a model choose its next step, but every path is visible and testable.
+- **Trust:** Auditability: identity runs before any order data is read, and the trace for every step is stored with PII redacted.
+
+### Slide 6 — Five agents, not one
+- **Point:** Narrow agents, each owning one kind of change, hand typed results back. No agent-to-agent chatter.
+- **Tradeoff:** More handoffs and routing logic, accepted because a single agent with every tool can refund while answering a policy question.
+- **Trust:** Least privilege: each agent gets only the tools it needs. The Policy agent has no write tools at all.
+
+### Slide 7 — The moment it says no ($149 approved vs $350 refused, `ORD-0008` / `ORD-0004`)
+- **Point:** Same agent, same tools; a Python rule makes the difference, and the refusal comes with an alternative (store credit).
+- **Tradeoff:** A hard $200 cap refuses some reasonable customers. I took that cost because a fixed rule can be tested and a model's judgment cannot.
+- **Trust:** Governance: every decision returns a rule ID (`refund-cap-200`) and a deterministic decision ID, and the audit row records outcome `denied`. Asking twice still creates one refund.
+
+### Slide 8 — It remembers the case (replacement → store credit)
+- **Point:** Memory is small, saved state: verified order, pending choice, prior actions. Nothing is written on turn 1.
+- **Tradeoff:** Storing a structured case instead of the full transcript loses conversational nuance, but it keeps state small, checkable, and free of PII.
+- **Trust:** Privacy by data minimization: memory keeps IDs, not the raw email or street address, and the follow-up checks policy again before writing. *(designed)* A retention window would purge old state.
+
+### Slide 9 — Proof (27/27 tests, 5/5 conversations, 0 violations)
+- **Point:** "Works" is defined by a scorecard, and the build fails on a single policy violation.
+- **Tradeoff:** Five golden conversations is a narrow bar. I chose depth on high-risk paths over breadth on wording.
+- **Trust:** Compliance evidence: CI is a control, not a report. It runs without an API key, so anyone can reproduce the result.
+
+### Slide 10 — Three tradeoffs (refund + address change on a delivered order)
+- **Point:** Partial success is a product decision: the legal step (refund) completes and the illegal step (address change after shipment) is denied, with the reason.
+- **Tradeoff:** Keyword routing and BM25 keyword search over six docs instead of a vector database: exact citations and stable replay, at the cost of open-ended phrasing.
+- **Trust:** Governance: each step is decided and audited separately (`refund-within-cap-and-window` allowed, `address-before-shipment` denied), so one illegal part never blocks or contaminates the legal part.
+
+### Slide 11 — What I would not claim (covered vs uncovered policy question)
+- **Point:** An honest "that is not in the policy" is a feature, not a failure.
+- **Tradeoff:** Refusing to answer from general knowledge frustrates some customers; inventing store policy creates liability.
+- **Trust:** Compliance honesty: cited answers (`returns-and-refunds.md#refund-limit`), fabricated citations blocked before the model runs, and no claim of GDPR, SOC 2, or residency. *(designed)* Region pinning is the named next step.
+
+### Slide 12 — Close
+- **Point:** It can refuse, remember, and prove what it did.
+- **Tradeoff:** The first upgrade is model-based planning in the Supervisor, kept behind the same policy engine, trading some determinism for coverage of open-ended wording.
+- **Trust:** The policy engine stays the single place where permission is decided, so a smarter planner does not weaken the controls.
+
+### Use-case cheat sheet
+
+| Use case | Point | Tradeoff | Trust control |
+|---|---|---|---|
+| Order status `ORD-0002` | DB facts, model phrasing | Replay ≠ live quality | Identity first, masked tracking, no PII to model |
+| $149 refund `ORD-0008` | Allowed inside cap and window | Strict rule over flexibility | Idempotency key + audit row |
+| $350 refund `ORD-0004` | Refuse with an alternative | Some fair requests refused | Rule ID `refund-cap-200`, outcome `denied` |
+| Refund + address change | Partial success | More step logic | Each step audited separately |
+| Covered policy question | Answer with a citation | Keyword search over vectors | Citation must exist |
+| Uncovered policy question | Say "not in the policy" | Less helpful, less liability | Verifier blocks invented policy |
+| Replacement → store credit | Memory as saved state | Lose transcript nuance | No PII in memory, policy rechecked |

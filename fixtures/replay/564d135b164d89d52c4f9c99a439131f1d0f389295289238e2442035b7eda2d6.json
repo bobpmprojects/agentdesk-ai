@@ -1,0 +1,26 @@
+{
+  "request": {
+    "messages": [
+      {
+        "content": "Write one concise customer-service reply using only the supplied policy facts. State an action only when action_committed is true.",
+        "role": "system"
+      },
+      {
+        "content": "Customer request: My $350 blender arrived broken. Refund it please.\nFacts: {'order_id': 'ORD-0004', 'requested_resolution': 'cash refund', 'allowed': False, 'amount': None, 'reason': 'Cash refunds above $200 are not automatically approved.', 'alternative': 'Offer store credit.', 'action_committed': False}",
+        "role": "user"
+      }
+    ],
+    "model_id": "claude-sonnet-5-5",
+    "provider": "anthropic",
+    "template_version": "m2-refund-v1",
+    "tool_schema_version": "m2-v1"
+  },
+  "response": {
+    "text": "Hi, I'm sorry your blender arrived broken. For order ORD-0004, I can't automatically approve a cash refund on purchases over $200, so I'm not able to process one right now. What I can offer is store credit. Would you like to go that route?",
+    "usage": {
+      "cost_usd": 0.0,
+      "input_tokens": 168,
+      "output_tokens": 82
+    }
+  }
+}

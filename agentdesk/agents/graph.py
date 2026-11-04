@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import operator
+import re
 from collections.abc import Callable
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -64,6 +65,22 @@ GraphOperation = Literal[
     "conversation_start",
     "conversation_continue",
 ]
+
+
+# Output guard: when no refund was written, a reply may not claim one was.
+_UNSUPPORTED_REFUND_CLAIM = re.compile(
+    r"\b(?:has|have|was|were|is|been)\s+(?:been\s+)?(?:processed|approved|issued|refunded|credited)\b"
+    r"|\brefund(?:ed)?\s+(?:you|your)\b",
+    re.IGNORECASE,
+)
+
+
+def _refund_denial_reply(facts: dict[str, Any]) -> str:
+    reply = f"I wasn't able to approve this cash refund. {facts.get('reason') or ''}".strip()
+    if "store credit" in str(facts.get("alternative") or "").lower():
+        reply += " We can offer you store credit for the item instead."
+    return reply
+
 
 
 class AgentGraphState(ContractModel):
@@ -943,17 +960,31 @@ class AgentDeskGraph:
             output_tokens=response.usage.output_tokens,
             cost_usd=Decimal(str(response.usage.cost_usd)),
         )
-        update["final_reply"] = response.text
+        text = response.text
+        if (
+            state.operation == "refund"
+            and state.facts
+            and not state.facts[0].get("action_committed")
+            and _UNSUPPORTED_REFUND_CLAIM.search(text)
+        ):
+            text = _refund_denial_reply(state.facts[0])
+            self._trace(
+                state.context,
+                "verification",
+                "output_guard",
+                args={"blocked_unsupported_refund_claim": True},
+            )
+        update["final_reply"] = text
         if state.operation == "order_status":
             update["order_output"] = SupervisorOutput(
                 intents=["order_status"],
                 plan=state.plan,
-                final_reply=response.text,
+                final_reply=text,
             )
         elif state.operation == "refund":
             update["refund_output"] = RefundSupervisorOutput(
                 plan=state.plan,
-                final_reply=response.text,
+                final_reply=text,
                 resolution=state.resolution,
             )
         elif state.operation == "multi_intent":
@@ -965,14 +996,14 @@ class AgentDeskGraph:
             update["multi_output"] = MultiIntentSupervisorOutput(
                 intents=[resolution_intent, "address_change"],
                 plan=state.plan,
-                final_reply=response.text,
+                final_reply=text,
                 actions=state.actions,
             )
         else:
             if state.conversation_state is None:
                 raise ValueError("Conversation reply has no state")
             update["conversation_output"] = ConversationTurnOutput(
-                final_reply=response.text,
+                final_reply=text,
                 state=state.conversation_state,
                 actions=state.actions,
             )
